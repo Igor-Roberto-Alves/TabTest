@@ -6,3 +6,7 @@ statsmodels>=0.14
 torch>=2.6.0
 tabpfn
 tabstar  # Python 3.10–3.12
+# bases bancárias (download_banking.py)
+huggingface_hub
+kaggle
+pyarrow

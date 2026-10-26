@@ -110,7 +110,7 @@ Estas usam o objetivo de difusão do LDM, que o PRAGMA não tem.
 
 ## 5. Ordem sugerida
 
-1. **Dados:** baixar as três bases e converter para um formato comum, com uma tabela de perfil e uma tabela longa de eventos `(cliente, tempo, tipo, campos...)`. O MBD é grande, então vale começar por uma amostra de clientes.
+1. **Dados:** baixar as três bases com `python download_banking.py` (MBD-mini por padrão; `--mbd-full` para o completo) e converter para um formato comum, com uma tabela de perfil e uma tabela longa de eventos `(cliente, tempo, tipo, campos...)`. O MBD é grande, então vale começar por uma amostra de clientes.
 2. **Baselines P1:** GBDT + agregações no Home Credit, na AmEx e na propensão do MBD.
 3. **Modelo:**
    - encoder de evento = célula do LDM;
