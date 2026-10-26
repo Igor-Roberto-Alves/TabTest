@@ -1,0 +1,84 @@
+# Rodada 1 do modelo fundacional de eventos (fases 1, 3 e 5 de docs/pragma_sketch.md).
+# python -m src.pragma.queue experiments/round1.yaml
+name: round1
+items:
+  # ---------------------------------------------------------- fase 1: sanidade
+  - name: sanity_home_credit
+    script: train
+    description: >-
+      Sanidade (fase 1): pré-treino só no Home Credit, 5 mil passos, config padrão (d=256, 6 camadas de
+      histórico). Pergunta: as perdas de célula/evento/tipo/perfil caem e o probe de default sai de 0,5?
+    set: ["data.datasets=[home_credit]", optim.steps=5000, log.val_every=1000, probe.every=2500, log.ckpt_every=5000]
+  - name: sanity_amex
+    script: train
+    description: >-
+      Sanidade (fase 1): pré-treino só na AmEx (extratos mensais, 188 colunas anonimizadas), 5 mil passos.
+      Pergunta: o modelo aprende com nomes de coluna sem semântica? O probe da métrica AmEx sobe?
+    set: ["data.datasets=[amex]", optim.steps=5000, log.val_every=1000, probe.every=2500, log.ckpt_every=5000]
+  - name: sanity_mbd_mini
+    script: train
+    description: >-
+      Sanidade (fase 1): pré-treino só no MBD-mini (transações, geolocalização e diálogos), 5 mil passos.
+      Pergunta: as perdas caem nas três modalidades? O probe de propensão (4 produtos) sai de 0,5?
+    set: ["data.datasets=[mbd_mini]", optim.steps=5000, log.val_every=1000, probe.every=2500, log.ckpt_every=5000]
+
+  # ------------------------------------------------------ fase 3: pré-treino longo
+  - name: base_v1
+    script: train
+    description: >-
+      Pré-treino principal (fase 3): as três bases juntas (Home Credit, AmEx, MBD-mini), 100 mil passos,
+      config padrão: 25M de parâmetros, máscaras de célula 15%, evento 10%, tipo 10%, perfil 15%.
+      Checkpoint de referência para as tarefas da fase 5.
+    set: [optim.steps=100000]
+
+  # --------------------------------------------- fase 5: tarefas a partir do base_v1
+  - name: ft_home_credit_probe
+    script: finetune
+    description: "Tarefa default do Home Credit: linear probe (logística) sobre o embedding congelado do base_v1."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=home_credit, mode=probe]
+  - name: ft_home_credit_lora
+    script: finetune
+    description: "Tarefa default do Home Credit: LoRA (r=8) nas projeções de atenção do base_v1 + head linear, 6 mil passos."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=home_credit, mode=lora, optim.steps=6000]
+  - name: ft_home_credit_full
+    script: finetune
+    description: "Tarefa default do Home Credit: fine-tuning completo do base_v1 (lr 1e-4, head 1e-3), 6 mil passos."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=home_credit, mode=full, optim.steps=6000]
+  - name: ft_home_credit_scratch
+    script: finetune
+    description: "Tarefa default do Home Credit: mesma arquitetura treinada do zero, sem pré-treino (referência), 6 mil passos."
+    set: [init=null, data.dataset=home_credit, mode=full, optim.steps=6000, optim.lr=3.0e-4]
+
+  - name: ft_amex_probe
+    script: finetune
+    description: "Tarefa default da AmEx: linear probe sobre o embedding congelado do base_v1. Métrica principal: AmEx."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=amex, mode=probe]
+  - name: ft_amex_lora
+    script: finetune
+    description: "Tarefa default da AmEx: LoRA (r=8) sobre o base_v1 + head linear, 6 mil passos."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=amex, mode=lora, optim.steps=6000]
+  - name: ft_amex_full
+    script: finetune
+    description: "Tarefa default da AmEx: fine-tuning completo do base_v1, 6 mil passos."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=amex, mode=full, optim.steps=6000]
+  - name: ft_amex_scratch
+    script: finetune
+    description: "Tarefa default da AmEx: arquitetura treinada do zero, sem pré-treino (referência), 6 mil passos."
+    set: [init=null, data.dataset=amex, mode=full, optim.steps=6000, optim.lr=3.0e-4]
+
+  - name: ft_mbd_mini_probe
+    script: finetune
+    description: "Propensão do MBD-mini (4 produtos no mês): linear probe sobre o embedding congelado do base_v1."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=mbd_mini, mode=probe]
+  - name: ft_mbd_mini_lora
+    script: finetune
+    description: "Propensão do MBD-mini: LoRA (r=8) sobre o base_v1 + head linear, 6 mil passos."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=mbd_mini, mode=lora, optim.steps=6000]
+  - name: ft_mbd_mini_full
+    script: finetune
+    description: "Propensão do MBD-mini: fine-tuning completo do base_v1, 6 mil passos."
+    set: [init=runs/pragma/base_v1/ckpt_best.pt, data.dataset=mbd_mini, mode=full, optim.steps=6000]
+  - name: ft_mbd_mini_scratch
+    script: finetune
+    description: "Propensão do MBD-mini: arquitetura treinada do zero, sem pré-treino (referência), 6 mil passos."
+    set: [init=null, data.dataset=mbd_mini, mode=full, optim.steps=6000, optim.lr=3.0e-4]

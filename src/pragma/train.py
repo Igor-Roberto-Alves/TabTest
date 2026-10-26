@@ -35,6 +35,7 @@ from .data import EventDataset, make_loader, to_device
 from .evaluate import embed, linear_probe
 from .model import PragmaConfig, PragmaModel, meta_to_torch
 from .objective import MaskConfig, mlm_loss
+from .runlog import RunStatus
 from .store import Store
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -96,11 +97,12 @@ def load_model(path, device="cpu"):
 
 
 class Logger:
-    """TensorBoard + JSONL com as mesmas chaves."""
+    """TensorBoard + JSONL com as mesmas chaves; com status, também atualiza o status.json do painel."""
 
-    def __init__(self, run_dir):
+    def __init__(self, run_dir, status: RunStatus = None):
         self.tb = SummaryWriter(run_dir)
         self.jsonl = open(Path(run_dir) / "metrics.jsonl", "a")
+        self.status = status
 
     def scalars(self, step, values: dict):
         for k, v in values.items():
@@ -108,6 +110,8 @@ class Logger:
                 self.tb.add_scalar(k, v, step)
         self.jsonl.write(json.dumps({"step": step, **{k: float(v) for k, v in values.items()}}) + "\n")
         self.jsonl.flush()
+        if self.status:
+            self.status.update(step, {k: v for k, v in values.items() if v is not None and np.isfinite(v)})
 
     def close(self):
         self.tb.flush()
@@ -170,6 +174,7 @@ def parse_args():
     p.add_argument("--config", type=Path, default=ROOT / "configs" / "pragma" / "pretrain.yaml")
     p.add_argument("--set", nargs="*", default=[], metavar="CHAVE=VALOR", help="sobrescreve a config")
     p.add_argument("--run-name", default=None)
+    p.add_argument("--description", default=None, help="o que esta execução testa (vai para o painel)")
     p.add_argument("--resume", type=Path, default=None, help="checkpoint para continuar")
     return p.parse_args()
 
@@ -179,6 +184,8 @@ def main():
     cfg = load_config(args.config, args.set)
     if args.run_name:
         cfg["run_name"] = args.run_name
+    if args.description:
+        cfg["description"] = args.description
     cfg["run_name"] = cfg.get("run_name") or time.strftime("%Y%m%d-%H%M%S")
     run_dir = ROOT / cfg["out_dir"] / cfg["run_name"]
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -218,8 +225,14 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     print(f"parâmetros: {n_params / 1e6:.1f}M  device={device}  amp={amp}  run={run_dir}")
 
-    log = Logger(run_dir)
+    status = RunStatus(run_dir, cfg["run_name"], "pragma", cfg.get("description", ""), oc["steps"],
+                       config={"datasets": dc["datasets"], "d_model": cfg["model"]["d_model"],
+                               "history_layers": cfg["model"]["history_layers"], "lr": oc["lr"],
+                               "batch_size": oc["batch_size"], "mask": cfg["mask"], "params_M": round(n_params / 1e6, 1)})
+    log = Logger(run_dir, status)
     log.tb.add_text("config", "```yaml\n" + (run_dir / "config.yaml").read_text() + "\n```", start)
+    if cfg.get("description"):
+        log.tb.add_text("description", cfg["description"], start)
     mask_cfg = MaskConfig(**cfg["mask"])
     names = list(stores)
     sums, counts, t_log, events_seen = {}, {}, time.time(), 0
@@ -273,6 +286,11 @@ def main():
 
             if step % lc["ckpt_every"] == 0 or step == oc["steps"]:
                 save_checkpoint(run_dir / "ckpt_last.pt", model, cfg, step, opt, sched, extra={"best": best})
+    except BaseException as e:
+        status.fail(repr(e))
+        raise
+    else:
+        status.finish({"best_val_loss": best})
     finally:
         hparams = {k: v for k, v in flatten(cfg).items() if not k.startswith(("log.", "out_dir", "run_name"))}
         final = {"hparam/best_val_loss": best if np.isfinite(best) else float("nan"),
