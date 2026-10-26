@@ -10,6 +10,14 @@ Reverse:  parte de tudo mascarado nas células desconhecidas e, de t=1 até t=0,
 
 O modelo é condicionado na fração de máscara observada da linha, não no t sorteado,
 para que treino e imputação (com parte da linha conhecida) vejam a mesma grandeza.
+
+Objetivos de treino (MaskedDiffusion.objective):
+    "diffusion"  o processo acima (padrão): serve para predição, imputação e geração.
+    "mlm"        estilo BERT, focado em predição: cada linha tem de 1 a mlm_max_frac·C
+                 células mascaradas, todas com o mesmo peso.
+    "icl"        em contexto (exige LDMConfig.in_context): o lote é dividido em contexto
+                 e consultas; uma coluna sorteada é o alvo, mascarada só nas consultas, e
+                 a loss conta só ali. Prediz uma tabela nova num forward, sem fine-tuning.
 """
 
 import math
@@ -40,9 +48,17 @@ class MaskSchedule:
 
 
 class MaskedDiffusion(nn.Module):
-    def __init__(self, model, schedule="cosine", weighting="elbo", t_min=1e-3, max_weight=1e3, reg_weight=1.0):
+    def __init__(self, model, schedule="cosine", weighting="elbo", t_min=1e-3, max_weight=1e3, reg_weight=1.0,
+                 objective="diffusion", mlm_max_frac=0.3, icl_query_frac=0.25):
         super().__init__()
+        if objective not in ("diffusion", "mlm", "icl"):
+            raise ValueError(f"objetivo desconhecido: {objective}")
+        if (objective == "icl") != model.cfg.in_context:
+            raise ValueError('objective="icl" e LDMConfig.in_context andam juntos')
         self.model = model
+        self.objective = objective
+        self.mlm_max_frac = mlm_max_frac
+        self.icl_query_frac = icl_query_frac
         self.schedule = MaskSchedule(schedule)
         self.weighting = weighting
         self.t_min = t_min
@@ -53,9 +69,18 @@ class MaskedDiffusion(nn.Module):
     def loss(self, local, z, meta, force_mask=None, weighting=None):
         """force_mask (N, C) bool: células sempre mascaradas (ex.: o alvo no fine-tuning)."""
         N, C = local.shape
+        if self.objective == "icl":
+            return self._icl_loss(local, z, meta)
         weighting = weighting or self.weighting
         t = self.t_min + (1 - self.t_min) * torch.rand(N, device=local.device)
-        masked = torch.rand(N, C, device=local.device) < (1 - self.schedule.alpha(t))[:, None]
+        if self.objective == "mlm":
+            # de 1 a k_max células por linha, em colunas sorteadas; sem t, sem peso do ELBO
+            k_max = max(1, round(self.mlm_max_frac * C))
+            k = torch.randint(1, k_max + 1, (N, 1), device=local.device)
+            masked = torch.rand(N, C, device=local.device).argsort(1).argsort(1) < k
+            weighting = "uniform"
+        else:
+            masked = torch.rand(N, C, device=local.device) < (1 - self.schedule.alpha(t))[:, None]
         if force_mask is not None:
             masked = masked | force_mask
         out = self.model(local, z, masked, masked.float().mean(1), meta)
@@ -73,6 +98,35 @@ class MaskedDiffusion(nn.Module):
         mse = ((out["z_pred"] - z) ** 2 * rm).sum() / rm.sum().clamp(min=1)
         loss = loss + self.reg_weight * mse
         return {"loss": loss, "ce_masked": ce_mean.detach(), "mse_masked": mse.detach()}
+
+    def _icl_loss(self, local, z, meta):
+        """Contexto = primeiras linhas, consultas = últimas; alvo = uma coluna sorteada do lote."""
+        N, C = local.shape
+        n_query = max(1, int(N * self.icl_query_frac))
+        n_ctx = N - n_query
+        j = int(torch.randint(C, ()))
+        masked = torch.zeros(N, C, dtype=torch.bool, device=local.device)
+        masked[n_ctx:, j] = True
+        out = self.model(local, z, masked, masked.float().mean(1), meta, n_ctx=n_ctx)
+        ce = F.cross_entropy(out["logits"][n_ctx:, j], local[n_ctx:, j])
+        mse = torch.zeros((), device=local.device)
+        rm = local[n_ctx:, j] != LOCAL_NULL
+        if meta["kind"][j] == NUM and rm.any():
+            mse = ((out["z_pred"][n_ctx:, j] - z[n_ctx:, j])[rm] ** 2).mean()
+        loss = ce + self.reg_weight * mse
+        return {"loss": loss, "ce_masked": ce.detach(), "mse_masked": mse.detach()}
+
+    @torch.no_grad()
+    def predict_in_context(self, ctx_local, ctx_z, local, z, meta, target_cols, allow_null=False):
+        """Como predict, mas lendo as linhas de contexto (rotuladas) junto: só para "icl"."""
+        self.model.eval()
+        n_ctx = len(ctx_local)
+        masked = torch.zeros(n_ctx + len(local), local.shape[1], dtype=torch.bool, device=local.device)
+        masked[n_ctx:, target_cols] = True
+        out = self.model(torch.cat([ctx_local, local]), torch.cat([ctx_z, z]), masked,
+                         masked.float().mean(1), meta, n_ctx=n_ctx)
+        logits = self._ban_null(out["logits"][n_ctx:, target_cols], allow_null)
+        return logits.softmax(-1), out["z_pred"][n_ctx:, target_cols].clamp(-Z_CLIP, Z_CLIP)
 
     # ---------------------------------------------------------- amostragem
     @staticmethod

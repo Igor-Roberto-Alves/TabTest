@@ -127,18 +127,22 @@ class TableEncoder:
         n_options (C,)        opções válidas por coluna (sem contar [NULL])
         name_ids  (C, L)      ids de hash do nome da coluna
         cand_ids  (C, K, L)   ids de hash do texto de cada categoria (CAT)
+        name_str  (C,)        nome da coluna (texto cru, para encoders pré-treinados)
+        cand_str  (C, K)      texto de cada categoria, "" fora das opções (CAT)
         opt_q     (C, K)      posição no CDF de cada bin (NUM)
         opt_z     (C, K)      mediana padronizada de cada bin (NUM)
         """
         if self._meta is None:
             C, K = len(self.columns), max(c.n_options for c in self.columns)
             cand_ids = np.zeros((C, K, MAX_PIECES), dtype=np.int64)
+            cand_str = np.full((C, K), "", dtype=object)
             opt_q = np.zeros((C, K), dtype=np.float32)
             opt_z = np.zeros((C, K), dtype=np.float32)
             for j, spec in enumerate(self.columns):
                 n = spec.n_options
                 if spec.kind == CAT:
                     cand_ids[j, :n] = encode_texts(spec.categories)
+                    cand_str[j, :n] = [str(c) for c in spec.categories]
                 else:
                     opt_q[j, :n] = spec.bin_q
                     opt_z[j, :n] = spec.standardize(spec.bin_values)
@@ -147,6 +151,8 @@ class TableEncoder:
                 "n_options": np.array([c.n_options for c in self.columns], dtype=np.int64),
                 "name_ids": encode_texts(self.column_names),
                 "cand_ids": cand_ids, "opt_q": opt_q, "opt_z": opt_z,
+                "name_str": np.array([str(c) for c in self.column_names], dtype=object),
+                "cand_str": cand_str,
             }
         return self._meta
 

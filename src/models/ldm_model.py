@@ -2,7 +2,8 @@
 
 Com checkpoint, carrega o modelo pré-treinado e faz `steps` passos de fine-tuning na
 tabela da tarefa (steps=0 -> zero-shot). Sem checkpoint, treina do zero só nesta
-tabela: é a ablação que mostra quanto o pré-treino ajuda.
+tabela: é a ablação que mostra quanto o pré-treino ajuda. Checkpoint do objetivo "icl"
+não faz fine-tuning: o treino da tarefa entra como contexto (src/ldm/predict.py).
 """
 
 import warnings
@@ -29,6 +30,8 @@ def fit_predict(split: Split, seed=0, checkpoint=None, steps=None, device=None) 
         if split.task.dataset in ckpt["tables"]:
             warnings.warn(f"{split.task.dataset} estava no pré-treino: as linhas de teste vazaram")
         steps, lr = (300 if steps is None else steps), 1e-4
+        if diffusion.objective == "icl":
+            steps = 0
     else:
         diffusion = build_diffusion(LDMConfig(d_model=128, n_layers=4, n_heads=4))
         steps, lr = (2000 if steps is None else steps), 1e-3

@@ -14,6 +14,12 @@ Sem embedding posicional: a ordem das colunas não importa (atenção é equivar
 Head de autocomplete: logit_nck = <W_q h_nc, W_out o_ck> / sqrt(d), só sobre as opções válidas
 da coluna. Como as opções vêm de texto/quantis, a mesma head serve para qualquer coluna.
 Head de regressão: z_nc = w^T h_nc + b (valor contínuo padronizado das numéricas).
+
+Com in_context=True (objetivo "icl"), cada camada alterna atenção entre as colunas de uma
+linha e atenção entre as linhas de uma coluna, como no TabPFN. As primeiras n_ctx linhas
+do lote são o contexto (rotuladas, todas as células visíveis); as demais são consultas, que
+leem o contexto mas não umas às outras. Assim o modelo aprende a relação alvo-resto da
+tabela nova a partir dos exemplos do contexto, sem fine-tuning.
 """
 
 import math
@@ -36,6 +42,9 @@ class LDMConfig:
     dropout: float = 0.1
     n_buckets: int = N_BUCKETS
     n_fourier: int = 8
+    text_encoder: str = "hash"  # hash | frozen | finetune
+    text_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    in_context: bool = False  # atenção também entre linhas (objetivo "icl")
 
 
 def timestep_embedding(t, dim, max_period=10_000):
@@ -65,6 +74,68 @@ class HashTextEmbedder(nn.Module):
         return self.proj((self.emb(ids) * mask).sum(-2) / mask.sum(-2).clamp(min=1))
 
 
+class PretrainedTextEmbedder(nn.Module):
+    """Mean pooling de um sentence-transformer sobre o texto cru, seguido de LN + Linear.
+
+    frozen:   o encoder não recebe gradiente (só a projeção treina); cada texto é
+              codificado uma única vez e fica em cache.
+    finetune: o gradiente flui pelo encoder; os textos únicos do lote são
+              recodificados a cada passo.
+    Texto "" é padding e vira o vetor nulo antes da projeção, como no HashTextEmbedder.
+    """
+
+    def __init__(self, model_name, d, frozen, max_length=32):
+        super().__init__()
+        from transformers import AutoModel, AutoTokenizer
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.encoder = AutoModel.from_pretrained(model_name)
+        self.frozen = frozen
+        self.max_length = max_length
+        hidden = self.encoder.config.hidden_size
+        self.proj = nn.Sequential(nn.LayerNorm(hidden), nn.Linear(hidden, d))
+        if frozen:
+            self.encoder.requires_grad_(False)
+        self._cache = {}
+
+    def train(self, mode=True):
+        super().train(mode)
+        if self.frozen:
+            self.encoder.eval()  # sem dropout: o cache precisa ser determinístico
+        return self
+
+    def _encode(self, texts):
+        dev = self.proj[1].weight.device
+        tok = self.tokenizer(texts, padding=True, truncation=True, max_length=self.max_length,
+                             return_tensors="pt").to(dev)
+        out = self.encoder(**tok).last_hidden_state
+        m = tok["attention_mask"].unsqueeze(-1).to(out.dtype)
+        return (out * m).sum(1) / m.sum(1).clamp(min=1)
+
+    def forward(self, texts):
+        """texts: array de str (qualquer shape) -> (*shape, d)."""
+        flat = texts.reshape(-1)
+        dev = self.proj[1].weight.device
+        uniq = sorted({t for t in flat if t})
+        hidden = self.encoder.config.hidden_size
+        if not uniq:  # ex.: cand_str de um lote só com colunas numéricas
+            vecs = torch.zeros(0, hidden, device=dev)
+        elif self.frozen:
+            missing = [t for t in uniq if t not in self._cache]
+            if missing:
+                with torch.no_grad():
+                    for i in range(0, len(missing), 512):
+                        chunk = missing[i:i + 512]
+                        self._cache.update(zip(chunk, self._encode(chunk)))
+            vecs = torch.stack([self._cache[t] for t in uniq]).to(dev)
+        else:
+            vecs = self._encode(uniq)
+        vecs = torch.cat([torch.zeros(1, hidden, device=dev, dtype=vecs.dtype), vecs])
+        index = {t: i + 1 for i, t in enumerate(uniq)}
+        idx = torch.tensor([index.get(t, 0) for t in flat], device=dev).view(texts.shape)
+        return self.proj(vecs[idx])
+
+
 class Block(nn.Module):
     """Bloco pre-LN: x + Attn(LN(x)); x + MLP(LN(x)). Atenção bidirecional (sem máscara causal)."""
 
@@ -80,10 +151,12 @@ class Block(nn.Module):
         self.dropout = dropout
         self.drop = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x, attn_mask=None):
+        """attn_mask (L, L) bool: True onde a posição da linha pode atender a da coluna."""
         B, L, D = x.shape
         q, k, v = self.qkv(self.ln1(x)).view(B, L, 3, self.n_heads, D // self.n_heads).permute(2, 0, 3, 1, 4)
-        a = F.scaled_dot_product_attention(q, k, v, dropout_p=self.dropout if self.training else 0.0)
+        a = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask,
+                                           dropout_p=self.dropout if self.training else 0.0)
         x = x + self.drop(self.proj(a.transpose(1, 2).reshape(B, L, D)))
         return x + self.drop(self.mlp(self.ln2(x)))
 
@@ -94,7 +167,12 @@ class TabularLDM(nn.Module):
         self.cfg = cfg
         d, nf = cfg.d_model, 2 * cfg.n_fourier + 1
 
-        self.text = HashTextEmbedder(cfg.n_buckets, d)
+        if cfg.text_encoder == "hash":
+            self.text = HashTextEmbedder(cfg.n_buckets, d)
+        elif cfg.text_encoder in ("frozen", "finetune"):
+            self.text = PretrainedTextEmbedder(cfg.text_model, d, frozen=cfg.text_encoder == "frozen")
+        else:
+            raise ValueError(f"text_encoder desconhecido: {cfg.text_encoder}")
         self.kind_emb = nn.Embedding(2, d)
         self.num_option = nn.Sequential(nn.Linear(2 * nf, d), nn.GELU(), nn.Linear(d, d))
         self.null_emb = nn.Parameter(torch.randn(d) * 0.02)
@@ -104,12 +182,19 @@ class TabularLDM(nn.Module):
         self.in_proj = nn.Linear(d, d)
 
         self.blocks = nn.ModuleList(Block(d, cfg.n_heads, cfg.mlp_ratio, cfg.dropout) for _ in range(cfg.n_layers))
+        if cfg.in_context:
+            self.row_blocks = nn.ModuleList(Block(d, cfg.n_heads, cfg.mlp_ratio, cfg.dropout)
+                                            for _ in range(cfg.n_layers))
         self.ln_f = nn.LayerNorm(d)
         self.query = nn.Linear(d, d)
         self.out_proj = nn.Linear(d, d)
         self.reg_head = nn.Linear(d, 1)
 
+        pretrained = getattr(self.text, "encoder", None)
+        saved = {k: v.clone() for k, v in pretrained.state_dict().items()} if pretrained is not None else None
         self.apply(self._init)
+        if saved is not None:
+            pretrained.load_state_dict(saved)  # o _init não pode sobrescrever o encoder pré-treinado
 
     @staticmethod
     def _init(m):
@@ -120,10 +205,16 @@ class TabularLDM(nn.Module):
             if isinstance(m, nn.Embedding) and m.padding_idx is not None:
                 nn.init.zeros_(m.weight[m.padding_idx])
 
+    def embed_text(self, meta, key):
+        """key = "name" | "cand": ids de hash ou texto cru, conforme o encoder."""
+        if self.cfg.text_encoder == "hash":
+            return self.text(meta[f"{key}_ids"])
+        return self.text(meta[f"{key}_str"])
+
     def options(self, meta):
         """Embeddings das opções de cada coluna: (C, K+1, d), índice 0 = [NULL]; e a máscara de válidas."""
         nf = self.cfg.n_fourier
-        cat = self.text(meta["cand_ids"])
+        cat = self.embed_text(meta, "cand")
         num = self.num_option(torch.cat([fourier(meta["opt_q"], nf), fourier(meta["opt_z"] / Z_CLIP, nf)], -1))
         opts = torch.where((meta["kind"] == CAT)[:, None, None], cat, num)
         C, K = meta["opt_q"].shape
@@ -131,18 +222,19 @@ class TabularLDM(nn.Module):
         valid = torch.arange(K + 1, device=opts.device)[None, :] <= meta["n_options"][:, None]
         return opts, valid
 
-    def forward(self, local, z, masked, ratio, meta):
+    def forward(self, local, z, masked, ratio, meta, n_ctx=None):
         """
         local  (N, C) índice local da célula (ignorado onde masked)
         z      (N, C) valor contínuo padronizado (só usado em numérica visível e não nula)
         masked (N, C) bool
         ratio  (N,)   fração de células mascaradas da linha
         meta   dict de tensores de TableEncoder.meta()
+        n_ctx  só com in_context: as primeiras n_ctx linhas são o contexto
         Retorna {"logits": (N, C, K+1), "z_pred": (N, C)}.
         """
         N, C = local.shape
         opts, valid = self.options(meta)
-        col = self.text(meta["name_ids"]) + self.kind_emb(meta["kind"])  # (C, d)
+        col = self.embed_text(meta, "name") + self.kind_emb(meta["kind"])  # (C, d)
 
         value = self.in_proj(opts)[torch.arange(C, device=local.device)[None, :], local.clamp(min=0)]
         numeric_visible = (meta["kind"] == NUM)[None, :] & ~masked & (local != 0)
@@ -150,8 +242,16 @@ class TabularLDM(nn.Module):
         value = torch.where(masked.unsqueeze(-1), self.mask_emb, value)
 
         h = value + col[None] + self.time_mlp(timestep_embedding(ratio, self.cfg.d_model))[:, None, :]
-        for blk in self.blocks:
-            h = blk(h)
+        if not self.cfg.in_context:
+            for blk in self.blocks:
+                h = blk(h)
+        else:
+            # consultas e contexto atendem só ao contexto: uma consulta não vê as outras
+            row_mask = torch.zeros(N, N, dtype=torch.bool, device=h.device)
+            row_mask[:, :n_ctx] = True
+            for col_blk, row_blk in zip(self.blocks, self.row_blocks):
+                h = col_blk(h)                                              # (N, C, d): entre colunas
+                h = row_blk(h.transpose(0, 1), row_mask).transpose(0, 1)    # (C, N, d): entre linhas
         h = self.ln_f(h)
 
         logits = torch.einsum("ncd,ckd->nck", self.query(h), self.out_proj(opts)) / math.sqrt(self.cfg.d_model)

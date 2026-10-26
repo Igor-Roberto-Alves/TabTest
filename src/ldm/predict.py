@@ -4,6 +4,9 @@ O codificador é ajustado no treino da tabela nova (só estatísticas, sem gradi
 Com steps > 0, uma cópia do modelo recebe fine-tuning nessa tabela, alternando
 lotes com a loss de difusão comum e lotes em que o alvo é sempre mascarado.
 steps = 0 é zero-shot: só o pré-treino.
+
+Checkpoints do objetivo "icl" não fazem fine-tuning: até max_context linhas do treino
+entram como contexto rotulado em cada forward, e o modelo prediz as linhas de teste lendo-as.
 """
 
 import copy
@@ -16,7 +19,8 @@ from .table import CAT, NUM
 
 
 def adapt_and_predict(diffusion, train_df, test_df, target, kind, steps=300, batch_size=128, lr=1e-4,
-                      target_frac=0.5, seed=0, device="cpu", encoder_kwargs=None, verbose=False):
+                      target_frac=0.5, seed=0, device="cpu", encoder_kwargs=None, verbose=False,
+                      max_context=1024, query_batch=256):
     """kind: "regression" (alvo numérico) ou "binary"/"multiclass" (alvo categórico, sem cortar classes).
 
     Retorna (spec do alvo, probs (n_test, n_options) sem [NULL], y_reg (n_test,) na escala original).
@@ -28,12 +32,19 @@ def adapt_and_predict(diffusion, train_df, test_df, target, kind, steps=300, bat
     meta = to_torch(table.meta, device)
     diffusion = copy.deepcopy(diffusion).to(device)
 
-    if steps:
+    in_context = diffusion.objective == "icl"
+    if steps and not in_context:
         local_all = torch.as_tensor(table.local, device=device)
         z_all = torch.as_tensor(table.z, device=device)
         force = torch.zeros(local_all.shape[1], dtype=torch.bool, device=device)
         force[j] = True
-        opt = torch.optim.AdamW(diffusion.parameters(), lr=lr, weight_decay=0.01)
+        # encoder de texto pré-treinado (se treinável) com lr 10× menor, como no pré-treino
+        encoder = getattr(diffusion.model.text, "encoder", None)
+        text_ids = {id(p) for p in encoder.parameters()} if encoder is not None else set()
+        params = [p for p in diffusion.parameters() if p.requires_grad]
+        groups = [{"params": [p for p in params if id(p) not in text_ids], "lr": lr},
+                  {"params": [p for p in params if id(p) in text_ids], "lr": lr / 10}]
+        opt = torch.optim.AdamW([g for g in groups if g["params"]], weight_decay=0.01)
         diffusion.train()
         for step in range(1, steps + 1):
             rows = torch.randint(0, len(local_all), (batch_size,), device=device)
@@ -50,9 +61,18 @@ def adapt_and_predict(diffusion, train_df, test_df, target, kind, steps=300, bat
                 print(f"    fine-tune {step}/{steps}  loss={stats['loss'].item():.4f}")
 
     test = to_torch(table.encoder.encode(test_df), device)
+    if in_context:
+        ctx = np.random.default_rng(seed).choice(len(table), min(max_context, len(table)), replace=False)
+        ctx_local = torch.as_tensor(table.local[ctx], device=device)
+        ctx_z = torch.as_tensor(table.z[ctx], device=device)
     probs, z_pred = [], []
-    for b in range(0, len(test_df), 1024):
-        p, zp = diffusion.predict(test["local"][b:b + 1024], test["z"][b:b + 1024], meta, [j])
+    chunk = query_batch if in_context else 1024
+    for b in range(0, len(test_df), chunk):
+        local, z = test["local"][b:b + chunk], test["z"][b:b + chunk]
+        if in_context:
+            p, zp = diffusion.predict_in_context(ctx_local, ctx_z, local, z, meta, [j])
+        else:
+            p, zp = diffusion.predict(local, z, meta, [j])
         probs.append(p[:, 0, 1:])  # descarta a opção [NULL]
         z_pred.append(zp[:, 0])
     spec = table.encoder.columns[j]

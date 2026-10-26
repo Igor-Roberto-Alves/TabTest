@@ -26,7 +26,9 @@ def find_tables(dirs, exclude=()) -> list[Path]:
 
 
 def to_torch(arrays: dict, device) -> dict:
-    return {k: torch.as_tensor(v, device=device) for k, v in arrays.items()}
+    """Arrays de texto (dtype object) ficam como estão: o encoder de texto os consome."""
+    return {k: v if getattr(v, "dtype", None) == object else torch.as_tensor(v, device=device)
+            for k, v in arrays.items()}
 
 
 def subset_columns(arrays: dict, cols) -> dict:
@@ -55,7 +57,8 @@ class EncodedTable:
 
 
 class TableCorpus:
-    def __init__(self, paths, max_rows=50_000, max_cols=64, temperature=0.5, seed=0, encoder_kwargs=None):
+    def __init__(self, paths, max_rows=50_000, max_cols=64, temperature=0.5, seed=0, encoder_kwargs=None,
+                 val_frac=0.0):
         self.rng = np.random.default_rng(seed)
         self.max_cols = max_cols
         self.tables: list[EncodedTable] = []
@@ -68,6 +71,12 @@ class TableCorpus:
             self.tables.append(EncodedTable.from_frame(Path(path).stem, df, encoder_kwargs))
         if not self.tables:
             raise ValueError("nenhuma tabela no corpus")
+        # val_frac das linhas de cada tabela fica fora dos lotes de treino (curva de validação)
+        self.rows = []
+        for t in self.tables:
+            perm = self.rng.permutation(len(t))
+            n_val = int(val_frac * len(t))
+            self.rows.append({"val": perm[:n_val], "train": perm[n_val:]})
         sizes = np.array([len(t) for t in self.tables], dtype=float)
         self.probs = sizes ** temperature / (sizes ** temperature).sum()
 
@@ -75,12 +84,21 @@ class TableCorpus:
     def names(self):
         return [t.name for t in self.tables]
 
-    def sample(self, batch_size, device):
-        """Retorna (nome, local, z, meta) de um lote de uma tabela sorteada."""
-        table = self.tables[self.rng.choice(len(self.tables), p=self.probs)]
-        rows = self.rng.integers(0, len(table), batch_size)
+    def sample(self, batch_size, device, split="train", rng=None, replace=True):
+        """Retorna (nome, local, z, meta) de um lote de uma tabela sorteada.
+
+        replace=False: linhas distintas (no objetivo "icl" uma consulta repetida no contexto
+        vazaria o alvo); numa tabela menor que o lote, o lote fica com a tabela inteira.
+        """
+        rng = rng or self.rng
+        i = rng.choice(len(self.tables), p=self.probs)
+        table, pool = self.tables[i], self.rows[i][split]
+        if replace:
+            rows = pool[rng.integers(0, len(pool), batch_size)]
+        else:
+            rows = pool[rng.choice(len(pool), min(batch_size, len(pool)), replace=False)]
         C = table.local.shape[1]
-        cols = np.sort(self.rng.choice(C, self.max_cols, replace=False)) if C > self.max_cols else np.arange(C)
+        cols = np.sort(rng.choice(C, self.max_cols, replace=False)) if C > self.max_cols else np.arange(C)
         data = subset_columns({"local": table.local[rows], "z": table.z[rows]}, cols)
         meta = subset_columns(table.meta, cols)
         data, meta = to_torch(data, device), to_torch(meta, device)
