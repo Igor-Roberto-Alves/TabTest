@@ -18,11 +18,13 @@ MAX_PIECES = 32
 
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _SPLIT = re.compile(r"[^0-9a-z]+")
+_SYMBOLS = re.compile(r"[^0-9A-Za-z\s]+")
 
 
 def pieces(text) -> list[str]:
     words = [w for w in _SPLIT.split(_CAMEL.sub(" ", str(text)).lower()) if w]
-    out = [f"w:{w}" for w in words]
+    # símbolos também viram pedaços: sem eles "<=50K" e ">50K" (ou "-" e "+") teriam o mesmo hash
+    out = [f"w:{w}" for w in words] + [f"s:{s}" for s in _SYMBOLS.findall(str(text))]
     for w in words:
         padded = f"<{w}>"
         out += [f"c:{padded[i:i + 3]}" for i in range(len(padded) - 2)]
