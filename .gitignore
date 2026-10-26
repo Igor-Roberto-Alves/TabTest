@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+
+# dados baixados (download_datasets.py, src.ldm.corpus_download) e saídas do treino
+data/*
+!data/.gitkeep
+checkpoints/*
+!checkpoints/.gitkeep
