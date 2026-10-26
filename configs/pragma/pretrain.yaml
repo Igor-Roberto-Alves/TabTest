@@ -1,0 +1,67 @@
+# Pré-treino do modelo fundacional de eventos (src/pragma/train.py).
+# Qualquer chave pode ser sobrescrita: --set optim.lr=1e-3 model.d_model=128
+run_name: null            # null = data e hora
+out_dir: runs/pragma      # tensorboard --logdir runs/pragma
+seed: 0
+device: null              # null = cuda se disponível
+
+data:
+  root: data/banking/prepared           # saída de python -m src.pragma.prepare
+  datasets: [home_credit, amex, mbd_mini]
+  temperature: 0.5                      # base sorteada com prob. ∝ n_clientes^temperature
+  pretrain_splits: [train, unlabeled]   # clientes de validação/teste ficam fora do pré-treino
+  time_cutoff: null                     # ex.: {mbd_mini: 600}: só eventos com t < 600 no pré-treino
+  num_workers: 6
+  max_events:                           # eventos mais recentes mantidos por fonte e amostra
+    default: 64
+    bureau_balance: 96
+    installments: 96
+    trx: 128
+    geo: 64
+
+model:
+  d_model: 256
+  n_heads: 8
+  cell_layers: 2
+  profile_layers: 2
+  history_layers: 6
+  mlp_ratio: 4
+  dropout: 0.1
+  n_fourier: 8
+  text_encoder: hash      # hash | frozen | finetune (MiniLM)
+  text_model: sentence-transformers/all-MiniLM-L6-v2
+
+mask:                     # src/pragma/objective.py
+  p_cell: 0.15
+  p_event: 0.10
+  p_type: 0.10
+  p_profile: 0.15
+  w_cell: 1.0
+  w_event: 1.0
+  w_type: 1.0
+  w_profile: 1.0
+  reg_weight: 1.0
+
+optim:
+  steps: 100000
+  batch_size: 64
+  lr: 3.0e-4
+  text_lr: 3.0e-5         # só com text_encoder: finetune
+  min_lr_ratio: 0.05
+  weight_decay: 0.05
+  betas: [0.9, 0.98]
+  warmup: 0.02            # fração dos passos
+  grad_clip: 1.0
+  amp: true               # bf16 na GPU
+
+log:
+  log_every: 50
+  val_every: 2000
+  val_batches: 16
+  ckpt_every: 5000
+
+probe:                    # logística sobre embeddings congelados, por base
+  every: 10000            # 0 desliga
+  n_train: 20000
+  n_val: 10000
+  C: 1.0

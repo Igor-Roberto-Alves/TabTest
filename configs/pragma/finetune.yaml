@@ -1,0 +1,60 @@
+# Tarefa supervisionada (src/pragma/finetune.py).
+# Ex.: --set init=runs/pragma/<run>/ckpt_best.pt data.dataset=amex mode=lora data.label_frac=0.1
+run_name: null
+out_dir: runs/pragma_ft
+seed: 0
+device: null
+
+init: null                # checkpoint do pré-treino; null = backbone do zero (usa model:)
+mode: full                # probe | linear | lora | full
+probe_C: 1.0              # só no modo probe
+
+data:
+  root: data/banking/prepared
+  dataset: home_credit    # home_credit (default) | amex (default) | mbd_mini (propensity, 4 rótulos)
+  label_frac: 1.0         # fração das linhas de treino (curva de rótulos)
+  num_workers: 6
+  max_events:
+    default: 64
+    bureau_balance: 96
+    installments: 96
+    trx: 128
+    geo: 64
+
+model:                    # só com init: null
+  d_model: 256
+  n_heads: 8
+  cell_layers: 2
+  profile_layers: 2
+  history_layers: 6
+  mlp_ratio: 4
+  dropout: 0.1
+  n_fourier: 8
+  text_encoder: hash
+
+head:
+  hidden: 0               # 0 = linear
+  dropout: 0.1
+
+lora:
+  r: 8
+  alpha: 16
+  dropout: 0.0
+
+optim:
+  steps: 10000
+  batch_size: 64
+  lr: 1.0e-4              # backbone (full/lora)
+  head_lr: 1.0e-3
+  weight_decay: 0.01
+  warmup: 0.05
+  grad_clip: 1.0
+  amp: true
+  pos_weight: null        # auto = (1 - p) / p por rótulo, limitado a max_pos_weight
+  max_pos_weight: 50.0
+
+log:
+  log_every: 50
+  eval_every: 1000
+  val_max: 30000          # linhas de validação avaliadas (null = todas)
+  test_max: null

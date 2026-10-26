@@ -1,0 +1,21 @@
+# Busca de hiperparâmetros do pré-treino (src/pragma/sweep.py).
+# Execuções curtas (20k passos) para escolher a região; a melhor vai para o treino longo.
+# Compare em: tensorboard --logdir runs/pragma/sweep_pretrain  (aba HParams: hparam/best_val_loss
+# e hparam/probe_<base>/auc).
+name: sweep_pretrain
+script: train
+base: configs/pragma/pretrain.yaml
+method: random
+trials: 12
+seed: 0
+fixed:
+  - optim.steps=20000
+  - probe.every=10000
+params:
+  optim.lr: {dist: loguniform, low: 1.0e-4, high: 1.0e-3}
+  optim.weight_decay: [0.01, 0.05, 0.1]
+  model.d_model: [128, 256]
+  model.history_layers: [4, 6, 8]
+  mask.p_cell: [0.10, 0.15, 0.25]
+  mask.p_event: {dist: uniform, low: 0.05, high: 0.3}
+  mask.p_type: [0.0, 0.05, 0.10, 0.20]

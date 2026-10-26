@@ -1,0 +1,12 @@
+# Curva de rótulos e modos de adaptação numa base (src/pragma/sweep.py).
+# Troque init pelo checkpoint escolhido no pré-treino e data.dataset pela base.
+name: sweep_finetune_home_credit
+script: finetune
+base: configs/pragma/finetune.yaml
+method: grid
+fixed:
+  - init=runs/pragma/CHANGE_ME/ckpt_best.pt
+  - data.dataset=home_credit
+params:
+  mode: [probe, lora, full]
+  data.label_frac: [0.01, 0.1, 1.0]

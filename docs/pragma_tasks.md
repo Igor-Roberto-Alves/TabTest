@@ -6,7 +6,7 @@ Esta branch (`pragma-banking`) é para testar um modelo fundacional parecido com
 - **Home Credit**: Home Credit Default Risk, no Kaggle;
 - **AmEx**: American Express Default Prediction, no Kaggle.
 
-Ainda não há código nesta branch. Os números e esquemas abaixo vêm dos papers e das páginas das competições. Precisam ser conferidos quando os dados forem baixados.
+A implementação (modelo, dados, treino) e o plano de treino estão em [pragma_sketch.md](pragma_sketch.md). Os números e esquemas abaixo vêm dos papers e das páginas das competições. Precisam ser conferidos quando os dados forem baixados.
 
 ## 1. O que queremos reproduzir do PRAGMA
 
