@@ -200,7 +200,7 @@ Cuidados que já estão no código:
 
 ## 6. O que ainda falta
 
-- **Baselines GBDT** (LightGBM ou XGBoost com agregações por cliente) para as três tarefas P1. São necessários para a fase 6 e ainda não existem.
+- ~~Baselines GBDT~~: feitos em [src/baselines/](../src/baselines/), com XGBoost e curva de rótulos nas três bases. Os resultados estão em [experiments/README.md](../experiments/README.md).
 - **O MBD completo** (`--mbd-full`) só depois de validar no mini.
 - **Objetivos extras de [pragma_tasks.md](pragma_tasks.md)**: contraste entre janelas (CoLES) e próximo evento. Ainda não implementados.
 - **Tarefas P2** com rótulos derivados (atraso na próxima parcela, predição antecipada na AmEx). A estrutura de rótulos com corte já comporta essas tarefas: basta gerar as linhas `(cliente, corte, y)`.
