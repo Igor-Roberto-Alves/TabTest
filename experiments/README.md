@@ -44,6 +44,19 @@ O probe é uma logística sobre o embedding congelado, avaliada na validação.
 
 Leitura: as perdas caem e o probe sai do acaso nas três bases, então o pré-treino aprende algo útil. Com só 5 mil passos e um probe linear, o modelo ainda fica bem abaixo do XGBoost. A comparação justa vem com o `base_v1` (100 mil passos) e o fine-tuning da fase 5.
 
-### Fase 3: base_v1
+### Fase 3: base_v1 (concluída em 27/10/2026, 00:01)
 
-Em andamento.
+Pré-treino nas três bases juntas, 100 mil passos, config padrão (25M de parâmetros). Levou cerca de 3h55 na RTX A4500. O checkpoint usado nas tarefas é `runs/pragma/base_v1/ckpt_best.pt`, de menor `val/loss` (3,759).
+
+| Probe (validação) | sanidade, só a base | base_v1, três bases | XGBoost 100% (validação) |
+|---|---|---|---|
+| Home Credit, AUC | 0,650 | **0,686** | 0,788 |
+| AmEx, métrica AmEx (AUC) | 0,670 (0,930) | **0,701** (0,940) | 0,792 (0,961) |
+| MBD, AUC média | 0,704 | 0,682 | 0,824 |
+
+Leitura:
+
+- O pré-treino conjunto e mais longo melhora o probe no Home Credit e na AmEx, mas não no MBD, que fica abaixo da sanidade feita só nele.
+- O probe do MBD oscilou entre 0,61 e 0,70 ao longo do treino. Os positivos são raríssimos, então parte da oscilação é ruído.
+- A perda caiu de forma contínua até o fim (val/loss 6,5 → 3,76), sem sinal de sobreajuste.
+- Com embedding congelado e logística, o modelo segue bem abaixo do XGBoost. A fase 5 testa o fine-tuning.
