@@ -143,6 +143,39 @@ Ressalvas:
 - **MBD, vazamento:** as features de cada linha (cliente, mês m) usam só eventos antes do dia 1 de m. Isso foi conferido em 300 linhas contra o store.
 - **AmEx 100%, memória:** o pico de RAM foi de 15,4 GB. Depois disso, a leitura do cache foi trocada por pyarrow direto. A execução não foi refeita, mas as features e o treino são os mesmos.
 
+## XGBoost: colunas cruas e embedding do modelo fundacional (27/10/2026)
+
+Dois experimentos extras, rodados em CPU em paralelo com a rodada 2:
+
+- **Cru** ([experiments/xgb_raw.sh](xgb_raw.sh), `--raw`): só colunas brutas, sem agregação nem razões. No Home Credit, as 120 colunas do pedido, sem o histórico. Na AmEx, as 188 colunas do último extrato. O MBD não tem versão crua, porque sem agregar os eventos não sobra coluna.
+- **Com embedding** ([experiments/xgb_emb.sh](xgb_emb.sh), `--emb base_v1`): o embedding [CLS] congelado do `base_v1` (256 colunas, de [src/pragma/export_embeddings.py](../src/pragma/export_embeddings.py)), junto com as features feitas à mão ou sozinho (`--emb-only`). O embedding vem do checkpoint de pré-treino, que não viu rótulos nem clientes de validação ou teste, então não vaza o alvo. No MBD, ele respeita o corte de cada linha.
+
+Métrica principal no teste (AUC; métrica AmEx na AmEx):
+
+| Base | Rótulos | Cru | Só embedding | **Feito à mão** (baseline) | Feito à mão + embedding | Fine-tuning completo (rodada 1) |
+|---|---|---|---|---|---|---|
+| Home Credit | 100% | 0,764 | 0,711 | **0,801** | 0,800 | 0,792 |
+| Home Credit | 10% | 0,748 | — | **0,776** | 0,774 | rodada 2 |
+| Home Credit | 1% | 0,724 | 0,638 | **0,741** | 0,740 | rodada 2 |
+| AmEx | 100% | 0,790 | 0,712 | 0,792 | **0,794** | 0,7915 |
+| AmEx | 10% | 0,774 | — | 0,780 | **0,781** | rodada 2 |
+| AmEx | 1% | 0,747 | 0,674 | **0,751** | 0,750 | rodada 2 |
+| MBD-mini | 100% | — | 0,752 | 0,802 | **0,816** | 0,815 |
+| MBD-mini | 10% | — | — | 0,773 | **0,777** | rodada 2 |
+| MBD-mini | 1% | — | 0,634 | **0,736** | 0,726 | rodada 2 |
+
+Leitura:
+
+- **O valor das features feitas à mão depende da base.**
+  - No Home Credit, elas valem cerca de 0,04 de AUC sobre o pedido cru, porque o histórico (bureau, parcelas, cartão) só entra por meio delas.
+  - Na AmEx, valem só 0,002. O último extrato sozinho já carrega quase tudo, já que suas colunas são agregados prontos feitos pela própria AmEx.
+- **O embedding congelado ajuda o XGBoost no MBD e quase nada nas outras bases.**
+  - No MBD com 100% dos rótulos, ele leva o XGBoost de 0,802 para 0,816, e a validação sobe junto (0,824 → 0,843). É o melhor resultado no MBD até agora, empatado com o fine-tuning.
+  - O MBD é a base com menos engenharia (95 features) e com eventos crus mais ricos, então é lá que o resumo aprendido acrescenta algo.
+  - No Home Credit e na AmEx, a diferença fica dentro de ±0,002.
+- **Com poucos rótulos, o embedding não ajudou, ao contrário do esperado.** Com 1% dos rótulos, as 256 colunas a mais pioram um pouco (MBD: 0,736 → 0,726). Com poucas linhas, o XGBoost sobreajusta nas colunas extras.
+- **O embedding sozinho vale o mesmo que o probe linear** (Home Credit 0,711 contra 0,714; AmEx 0,712 contra 0,726; MBD 0,752 contra 0,750). O congelado sabe menos do que as features feitas à mão, e o ganho do pré-treino aparece no fine-tuning.
+
 ## Rodada 1 do modelo fundacional (`experiments/round1.yaml`)
 
 ### Fase 1: sanidade, 5 mil passos por base
