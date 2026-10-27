@@ -59,6 +59,7 @@ log:
   val_every: 2000
   val_batches: 16
   ckpt_every: 5000
+  keep_every: 0           # >0: guarda ckpt_step<N>k.pt a cada N passos (ex.: 100000 no base_v2b)
 
 probe:                    # logística sobre embeddings congelados, por base
   every: 10000            # 0 desliga

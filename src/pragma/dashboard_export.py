@@ -8,7 +8,11 @@ baselines, mais as filas em runs/queues/*.json, e escreve um documento com:
     gpu          uso e memória da GPU agora
 
 Execuções cujo nome começa com "_" (testes de fumaça) ficam de fora.
-Uso: python -m src.pragma.dashboard_export --out <arquivo.json> [--rows]
+Uso: python -m src.pragma.dashboard_export --out <arquivo.json> [--rows] [--machine direita|esquerda]
+
+Cada máquina exporta só as próprias execuções; --machine (padrão: pelo hostname, ver MACHINES) marca as
+linhas para o painel dizer em qual GPU cada execução rodou. A direita alimenta o dataset "monitor" do
+painel e a esquerda o "monitor_esquerda".
 
 Com --rows, a saída é uma lista plana de linhas com uma coluna "kind" (exp, series, queue,
 system): é o arquivo de dados do painel, que separa os tipos com cálculos na própria página.
@@ -16,12 +20,14 @@ system): é o arquivo de dados do painel, que separa os tipos com cálculos na p
 
 import argparse
 import json
+import socket
 import subprocess
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GROUPS = ["pragma", "pragma_ft", "baselines"]
+MACHINES = {"c1-03-04-16116": "direita", "c1-02-03-16117": "esquerda"}
 MAX_POINTS = 120
 # métricas desenhadas por grupo (prefixos); o resto fica só no TensorBoard
 SERIES = {
@@ -153,7 +159,7 @@ def summary(e):
     return " · ".join(parts)
 
 
-def to_rows(doc):
+def to_rows(doc, machine):
     now = time.time()
     rows = []
     for e in doc["experiments"]:
@@ -178,7 +184,7 @@ def to_rows(doc):
                      "primary_label": label, "primary_value": value, "higher_is_better": higher,
                      "summary": summary(e), "error": e.get("error"), "duration_min": duration,
                      "gpu_hours": gpu_hours, "gpu_mem_gb": None if mem is None else round(mem, 1),
-                     "best_step": e.get("best_step"),
+                     "best_step": e.get("best_step"), "machine": machine,
                      # nota final por métrica (validação no checkpoint escolhido e teste), para os cards de validação
                      **{f"{split}_{k}": e["metrics"].get(f"{split}/{k}")
                         for split in ("val", "test") for k in ("auc", "amex", "ks", "brier")}})
@@ -188,9 +194,9 @@ def to_rows(doc):
     for i, q in enumerate(doc["queue"]):
         rows.append({"kind": "queue", "name": q["name"], "group": q["group"],
                      "group_label": GROUP_LABEL.get(q["group"], q["group"]), "description": q["description"],
-                     "position": i + 1, "queue": q["queue"]})
+                     "position": i + 1, "queue": q["queue"], "machine": machine})
     g = doc["gpu"] or {}
-    rows.append({"kind": "system", "updated": doc["updated"], "gpu_util": g.get("util"),
+    rows.append({"kind": "system", "machine": machine, "updated": doc["updated"], "gpu_util": g.get("util"),
                  "gpu_mem_used": g.get("mem_used_gb"), "gpu_mem_total": g.get("mem_total_gb")})
     return rows
 
@@ -199,10 +205,14 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--rows", action="store_true", help="lista plana de linhas (arquivo de dados do painel)")
+    p.add_argument("--machine", choices=sorted(set(MACHINES.values())), default=MACHINES.get(socket.gethostname()),
+                   help="em qual PC as execuções rodam (padrão: pelo hostname)")
     args = p.parse_args()
+    if args.rows and not args.machine:
+        p.error(f"hostname {socket.gethostname()} fora de MACHINES: passe --machine")
     doc = collect()
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(to_rows(doc) if args.rows else doc, ensure_ascii=False, separators=(",", ":"))
+    text = json.dumps(to_rows(doc, args.machine) if args.rows else doc, ensure_ascii=False, separators=(",", ":"))
     args.out.write_text(text)
     print(f"{len(doc['experiments'])} execuções, {len(doc['queue'])} na fila, {len(text) / 1024:.0f} KB -> {args.out}")
 

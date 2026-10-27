@@ -11,6 +11,7 @@ Cada execução grava em <out_dir>/<run_name>/:
     events.out.*      TensorBoard: train/*, val/*, probe/*, opt/*, perf/* e a aba HParams
     ckpt_last.pt      último checkpoint (modelo, otimizador, passo)
     ckpt_best.pt      menor val/loss
+    ckpt_step<N>k.pt  cópias fixas a cada log.keep_every passos (0 desliga), para comparar checkpoints intermediários
     metrics.jsonl     as mesmas métricas em texto
 
 A cada passo sorteia uma base (prob. ∝ n_clientes^temperature) e um lote de clientes dela.
@@ -286,6 +287,8 @@ def main():
 
             if step % lc["ckpt_every"] == 0 or step == oc["steps"]:
                 save_checkpoint(run_dir / "ckpt_last.pt", model, cfg, step, opt, sched, extra={"best": best})
+            if lc.get("keep_every") and step % lc["keep_every"] == 0:
+                save_checkpoint(run_dir / f"ckpt_step{step // 1000}k.pt", model, cfg, step)
     except BaseException as e:
         status.fail(repr(e))
         raise
