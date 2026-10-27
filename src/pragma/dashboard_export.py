@@ -96,12 +96,18 @@ def collect():
             except json.JSONDecodeError:
                 continue
             latest = {k: round(v, 5) for k, v in st.get("metrics", {}).items() if keep_latest(k)}
+            best_step = None
+            if (run_dir / "results.json").exists():
+                try:
+                    best_step = json.loads((run_dir / "results.json").read_text()).get("best_step")
+                except json.JSONDecodeError:
+                    pass
             experiments.append({
                 "id": f"{group}/{run_id}", "name": st.get("name", run_id), "group": group,
                 "description": st.get("description", ""), "status": st.get("status", "?"),
                 "step": st.get("step", 0), "total_steps": st.get("total_steps"), "started": st.get("started"),
                 "updated": st.get("updated"), "error": st.get("error"), "config": st.get("config", {}),
-                "metrics": latest, "series": read_series(run_dir, group)})
+                "metrics": latest, "best_step": best_step, "series": read_series(run_dir, group)})
     started = {e["id"] for e in experiments}
     queue = []
     for qpath in sorted((ROOT / "runs" / "queues").glob("*.json")) if (ROOT / "runs" / "queues").exists() else []:
@@ -171,7 +177,11 @@ def to_rows(doc):
                      "progress": progress, "eta_min": eta, "started": e.get("started"), "updated": e.get("updated"),
                      "primary_label": label, "primary_value": value, "higher_is_better": higher,
                      "summary": summary(e), "error": e.get("error"), "duration_min": duration,
-                     "gpu_hours": gpu_hours, "gpu_mem_gb": None if mem is None else round(mem, 1)})
+                     "gpu_hours": gpu_hours, "gpu_mem_gb": None if mem is None else round(mem, 1),
+                     "best_step": e.get("best_step"),
+                     # nota final por métrica (validação no checkpoint escolhido e teste), para os cards de validação
+                     **{f"{split}_{k}": e["metrics"].get(f"{split}/{k}")
+                        for split in ("val", "test") for k in ("auc", "amex", "ks", "brier")}})
         for metric, ser in e["series"].items():
             rows += [{"kind": "series", "run": e["id"], "metric": metric, "step": st, "value": v}
                      for st, v in zip(ser["s"], ser["v"])]
