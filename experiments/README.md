@@ -95,3 +95,46 @@ Leitura:
 
 - **O fine-tuning completo empata com o XGBoost** (0,7915 contra 0,7923), que usa 1096 features feitas à mão.
 - **O ganho do pré-treino é menor que no Home Credit** (+0,017 contra o treino do zero). A AmEx é uma sequência curta e regular de extratos, com nomes de coluna sem semântica, e o treino do zero já aprende bem nesse formato.
+
+**MBD-mini, propensão (AUC média dos 4 produtos):**
+
+| Modo | Val | **Teste** | KS teste | Brier teste |
+|---|---|---|---|---|
+| Probe | 0,778 | 0,750 | 0,393 | 0,0028 |
+| LoRA r=8 | 0,756 | 0,768 | 0,412 | 0,0028 |
+| Fine-tuning completo | 0,813 | **0,815** | 0,494 | 0,0028 |
+| Do zero, sem pré-treino | 0,716 | 0,748 | 0,387 | 0,0028 |
+| XGBoost 100% | 0,824 | **0,802** | 0,481 | 0,0028 |
+
+AUC de teste por produto, fine-tuning completo contra XGBoost: target_1 0,780 / 0,793; target_2 **0,828** / 0,799; target_3 0,816 / 0,825; target_4 **0,836** / 0,793.
+
+Leitura:
+
+- **O fine-tuning completo supera o XGBoost no teste** (0,815 contra 0,802), na média e em dois dos quatro produtos. Ele também é mais estável entre os folds: 0,813 na validação e 0,815 no teste, enquanto o XGBoost cai de 0,824 para 0,802.
+- **Ressalva:** os positivos são raríssimos (0,05% a 0,45%) e só uma semente foi rodada. É preciso confirmar com mais sementes.
+- **O pré-treino vale cerca de 0,07 de AUC** contra o treino do zero (0,815 contra 0,748).
+- **O LoRA fica bem abaixo do fine-tuning completo aqui** (0,768). Com tão poucos positivos, 6 mil passos de adaptação de baixa ordem parecem não bastar.
+
+## Resumo da rodada 1
+
+Métrica principal no teste, fine-tuning completo a partir do `base_v1` contra o XGBoost com features feitas à mão:
+
+| Base | Fine-tuning completo | Do zero | XGBoost | Diferença para o XGBoost |
+|---|---|---|---|---|
+| Home Credit (AUC) | 0,792 | 0,670 | 0,801 | −0,009 |
+| AmEx (métrica AmEx) | 0,7915 | 0,774 | 0,7923 | −0,001 |
+| MBD-mini (AUC média) | **0,815** | 0,748 | 0,802 | **+0,013** |
+
+Conclusões:
+
+1. **O pré-treino conjunto nas três bases ajuda em todas.** O ganho vai de +0,017 a +0,12 sobre a mesma arquitetura treinada do zero, com o mesmo orçamento.
+2. **Um modelo único, sem features feitas à mão, empata ou chega perto do XGBoost** no Home Credit e na AmEx, e o supera no MBD.
+3. **O probe linear não basta.** O embedding congelado fica de 0,05 a 0,09 abaixo do fine-tuning. O LoRA r=8 fica no meio do caminho.
+4. **Em todas as tarefas, o melhor ponto foi o último ou o penúltimo.** As tarefas estão subtreinadas com 6 mil passos.
+
+Próximos passos sugeridos:
+
+- Fine-tuning mais longo (20 a 30 mil passos) nas três bases.
+- Repetir o fine-tuning completo com 3 sementes, para ter intervalos de confiança, sobretudo no MBD.
+- Curva de rótulos (1% e 10%) no fine-tuning, para comparar com a do XGBoost. É onde o pré-treino deve mostrar mais vantagem.
+- Busca de hiperparâmetros do pré-treino (`configs/pragma/sweep_pretrain.yaml`) e as ablações da fase 4: pré-treino por base contra o conjunto, e máscaras.
