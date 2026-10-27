@@ -30,7 +30,7 @@ SERIES = {
     "pragma_ft": ["train/loss", "val/auc", "val/amex", "val/ks", "val/brier"],
     "baselines": ["train/", "val/"],
 }
-LATEST = ("val/", "probe_", "test/", "train/loss", "best_val_loss", "perf/steps_per_sec")
+LATEST = ("val/", "probe_", "test/", "train/loss", "best_val_loss", "perf/steps_per_sec", "perf/gpu_mem_gb")
 
 
 def wanted(group, key):
@@ -114,6 +114,7 @@ def collect():
 
 
 GROUP_LABEL = {"pragma": "pré-treino", "pragma_ft": "tarefa", "baselines": "XGBoost"}
+GPU_GROUPS = {"pragma", "pragma_ft"}  # o XGBoost roda na CPU
 PROBE_LABEL = {"home_credit": "HC", "amex": "AmEx", "mbd_mini": "MBD"}
 
 
@@ -158,13 +159,19 @@ def to_rows(doc):
         if e["status"] == "running" and total and sps:
             eta = round((total - e["step"]) / sps / 60, 1)
         updated = time.mktime(time.strptime(e["updated"], "%Y-%m-%dT%H:%M:%S")) if e.get("updated") else now
+        started = time.mktime(time.strptime(e["started"], "%Y-%m-%dT%H:%M:%S")) if e.get("started") else None
+        # duração de parede: do início à última atualização (ou até agora, se ainda roda)
+        duration = None if started is None else round(((now if e["status"] == "running" else updated) - started) / 60, 1)
+        gpu_hours = None if duration is None else round(duration / 60, 2) if e["group"] in GPU_GROUPS else 0.0
+        mem = e["metrics"].get("perf/gpu_mem_gb")
         rows.append({"kind": "exp", "id": e["id"], "name": e["name"], "group": e["group"],
                      "group_label": GROUP_LABEL.get(e["group"], e["group"]), "status": e["status"],
                      "stale": e["status"] == "running" and now - updated > 20 * 60,
                      "description": e["description"], "step": e["step"], "total_steps": total or None,
                      "progress": progress, "eta_min": eta, "started": e.get("started"), "updated": e.get("updated"),
                      "primary_label": label, "primary_value": value, "higher_is_better": higher,
-                     "summary": summary(e), "error": e.get("error")})
+                     "summary": summary(e), "error": e.get("error"), "duration_min": duration,
+                     "gpu_hours": gpu_hours, "gpu_mem_gb": None if mem is None else round(mem, 1)})
         for metric, ser in e["series"].items():
             rows += [{"kind": "series", "run": e["id"], "metric": metric, "step": st, "value": v}
                      for st, v in zip(ser["s"], ser["v"])]

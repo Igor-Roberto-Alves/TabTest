@@ -159,7 +159,9 @@ def main():
                 if step % lc["log_every"] == 0:
                     log.scalars(step, {"train/loss": run_loss / lc["log_every"], "opt/lr": sched.get_last_lr()[-1],
                                        "opt/grad_norm": grad_norm.item(),
-                                       "perf/steps_per_sec": lc["log_every"] / (time.time() - t_log)})
+                                       "perf/steps_per_sec": lc["log_every"] / (time.time() - t_log),
+                                       **({"perf/gpu_mem_gb": torch.cuda.max_memory_allocated() / 1e9}
+                                          if device.startswith("cuda") else {})})
                     run_loss, t_log = 0.0, time.time()
                 if step % lc["eval_every"] == 0 or step == oc["steps"]:
                     y_va, p_va = predict(model, head, metas, val_ds, bs * 2, device, nw, amp)
