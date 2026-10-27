@@ -284,3 +284,26 @@ Próximos passos sugeridos:
 - Repetir o fine-tuning completo com 3 sementes, para ter intervalos de confiança, sobretudo no MBD.
 - Curva de rótulos (1% e 10%) no fine-tuning, para comparar com a do XGBoost. É onde o pré-treino deve mostrar mais vantagem.
 - Busca de hiperparâmetros do pré-treino (`configs/pragma/sweep_pretrain.yaml`) e as ablações da fase 4: pré-treino por base contra o conjunto, e máscaras.
+
+## Rodada 2 (`experiments/round2.yaml`)
+
+Começou em 27/10/2026 às 11h15 no PC da direita (c1-03-04-16116, RTX A4500). São 43 execuções em quatro blocos: A) fine-tuning longo com 3 sementes; B) curva de rótulos; C) ablações do pré-treino; D) busca de hiperparâmetros do pré-treino.
+
+Em paralelo, no PC da esquerda (c1-02-03-16117, outra RTX A4500), roda o `base_v2b`: o `base_v1` refeito do zero com 300 mil passos, cosseno ajustado ao novo total e checkpoints fixos em 100 mil e 200 mil (`log.keep_every=100000`). Ele responde se o pré-treino de 100 mil passos estava subtreinado.
+
+### Bloco A: fine-tuning com 20 mil passos e 3 sementes (concluído em 27/10/2026, 20h20)
+
+Métrica principal no teste, com o passo do checkpoint escolhido na validação entre parênteses:
+
+| Base | Semente 0 | Semente 1 | Semente 2 | Média ± dp | Rodada 1 (6 mil) | Do zero, 20 mil | Do zero, 6 mil | XGBoost feito à mão |
+|---|---|---|---|---|---|---|---|---|
+| Home Credit (AUC) | 0,789 (8k) | 0,788 (10k) | 0,791 (16k) | 0,789 ± 0,002 | 0,792 | 0,691 | 0,670 | **0,801** |
+| AmEx (métrica AmEx) | 0,795 (20k) | 0,793 (14k) | 0,792 (20k) | **0,793 ± 0,001** | 0,791 | 0,787 | 0,774 | 0,792 |
+| MBD-mini (AUC média) | 0,822 (20k) | 0,827 (16k) | 0,819 (12k) | **0,823 ± 0,004** | 0,815 | 0,772 | 0,748 | 0,802 |
+
+Leitura:
+
+1. **Mais passos ajudam no AmEx (+0,002) e no MBD (+0,008), não no Home Credit (−0,003).** No Home Credit, o melhor passo fica entre 8 mil e 16 mil, e passar disso é sobreajuste. Lá são cerca de 5 épocas em 20 mil passos.
+2. **Com 3 sementes, o resultado contra o XGBoost fica claro:** o modelo fundacional perde no Home Credit (−0,012), empata no AmEx (+0,001, dentro de um desvio-padrão) e ganha no MBD (+0,021, cerca de cinco desvios-padrão).
+3. **O ganho do pré-treino sobre o "do zero" continua grande com o mesmo orçamento de 20 mil passos:** +0,098 no Home Credit, +0,007 no AmEx e +0,051 no MBD. O "do zero" melhora com mais passos, mas não alcança o fine-tuning.
+4. No MBD e no AmEx, o XGBoost com o embedding do `base_v1` como feature (0,816 e 0,794) fica entre o XGBoost feito à mão e o fine-tuning.
