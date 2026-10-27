@@ -60,3 +60,23 @@ Leitura:
 - O probe do MBD oscilou entre 0,61 e 0,70 ao longo do treino. Os positivos são raríssimos, então parte da oscilação é ruído.
 - A perda caiu de forma contínua até o fim (val/loss 6,5 → 3,76), sem sinal de sobreajuste.
 - Com embedding congelado e logística, o modelo segue bem abaixo do XGBoost. A fase 5 testa o fine-tuning.
+
+### Fase 5: tarefas a partir do base_v1
+
+Fine-tuning com 6 mil passos e lote 64, usando o checkpoint de menor `val/loss` na validação. O "do zero" usa a mesma arquitetura e o mesmo orçamento, sem pré-treino (lr 3e-4).
+
+**Home Credit, default (AUC):**
+
+| Modo | Val | **Teste** | KS teste | Brier teste |
+|---|---|---|---|---|
+| Probe (logística sobre o embedding) | 0,705 | 0,714 | 0,319 | 0,073 |
+| LoRA r=8 (0,02M parâmetros treináveis) | 0,774 | 0,782 | 0,436 | 0,069 |
+| Fine-tuning completo | 0,783 | **0,792** | 0,446 | 0,068 |
+| Do zero, sem pré-treino | 0,674 | 0,670 | 0,250 | 0,074 |
+| XGBoost 100% | 0,788 | **0,801** | 0,457 | 0,068 |
+
+Leitura:
+
+- **O pré-treino vale cerca de 0,12 de AUC.** Com o mesmo orçamento, o fine-tuning completo chega a 0,792 e o treino do zero, a 0,670. Na validação, a diferença já aparece no passo 1.000 (0,760 contra 0,594).
+- **O fine-tuning completo fica a 0,009 do XGBoost**, que tem 727 features feitas à mão, depois de só 6 mil passos.
+- O LoRA e o fine-tuning completo atingiram o melhor ponto no fim ou perto dele. Mais passos devem ajudar.
