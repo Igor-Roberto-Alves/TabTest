@@ -1,0 +1,459 @@
+# Rodada 2 (ver experiments/README.md, "Próximos passos" da rodada 1).
+# python -m src.pragma.queue experiments/round2.yaml
+# A: fine-tuning de 20 mil passos com 3 sementes  B: curva de rótulos (1% e 10%)
+# C: ablações do pré-treino (fase 4)              D: busca de hiperparâmetros (configs/pragma/sweep_pretrain.yaml)
+name: round2
+items:
+- name: ft_home_credit_full_20k_s0
+  script: finetune
+  description: 'Rodada 2A: Home Credit (default, AUC). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 0 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_home_credit_full_20k_s1
+  script: finetune
+  description: 'Rodada 2A: Home Credit (default, AUC). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 1 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=1
+- name: ft_home_credit_full_20k_s2
+  script: finetune
+  description: 'Rodada 2A: Home Credit (default, AUC). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 2 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=2
+- name: ft_home_credit_scratch_20k
+  script: finetune
+  description: 'Rodada 2A: Home Credit (default, AUC). Mesma arquitetura treinada do zero, 20 mil passos, semente 0: o ganho do pré-treino se mantém com mais passos?'
+  set:
+  - init=null
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - optim.lr=3.0e-4
+  - seed=0
+- name: ft_amex_full_20k_s0
+  script: finetune
+  description: 'Rodada 2A: AmEx (default, métrica AmEx). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 0 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_amex_full_20k_s1
+  script: finetune
+  description: 'Rodada 2A: AmEx (default, métrica AmEx). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 1 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=1
+- name: ft_amex_full_20k_s2
+  script: finetune
+  description: 'Rodada 2A: AmEx (default, métrica AmEx). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 2 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=2
+- name: ft_amex_scratch_20k
+  script: finetune
+  description: 'Rodada 2A: AmEx (default, métrica AmEx). Mesma arquitetura treinada do zero, 20 mil passos, semente 0: o ganho do pré-treino se mantém com mais passos?'
+  set:
+  - init=null
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - optim.lr=3.0e-4
+  - seed=0
+- name: ft_mbd_mini_full_20k_s0
+  script: finetune
+  description: 'Rodada 2A: MBD-mini (propensão a 4 produtos, AUC média). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 0 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_mbd_mini_full_20k_s1
+  script: finetune
+  description: 'Rodada 2A: MBD-mini (propensão a 4 produtos, AUC média). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 1 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=1
+- name: ft_mbd_mini_full_20k_s2
+  script: finetune
+  description: 'Rodada 2A: MBD-mini (propensão a 4 produtos, AUC média). Fine-tuning completo do base_v1 com 20 mil passos (rodada 1: 6 mil), semente 2 de 3.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=2
+- name: ft_mbd_mini_scratch_20k
+  script: finetune
+  description: 'Rodada 2A: MBD-mini (propensão a 4 produtos, AUC média). Mesma arquitetura treinada do zero, 20 mil passos, semente 0: o ganho do pré-treino se mantém com mais passos?'
+  set:
+  - init=null
+  - data.dataset=mbd_mini
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - optim.lr=3.0e-4
+  - seed=0
+- name: ft_home_credit_full_frac01
+  script: finetune
+  description: 'Rodada 2B: Home Credit (default, AUC). Curva de rótulos: fine-tuning completo do base_v1 com 1% das linhas de treino, 4000 passos.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=4000
+  - log.eval_every=500
+- name: ft_home_credit_scratch_frac01
+  script: finetune
+  description: 'Rodada 2B: Home Credit (default, AUC). Curva de rótulos: do zero com 1% das linhas de treino, 4000 passos (referência sem pré-treino).'
+  set:
+  - init=null
+  - data.dataset=home_credit
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=4000
+  - log.eval_every=500
+  - optim.lr=3.0e-4
+- name: ft_amex_full_frac01
+  script: finetune
+  description: 'Rodada 2B: AmEx (default, métrica AmEx). Curva de rótulos: fine-tuning completo do base_v1 com 1% das linhas de treino, 4000 passos.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=4000
+  - log.eval_every=500
+- name: ft_amex_scratch_frac01
+  script: finetune
+  description: 'Rodada 2B: AmEx (default, métrica AmEx). Curva de rótulos: do zero com 1% das linhas de treino, 4000 passos (referência sem pré-treino).'
+  set:
+  - init=null
+  - data.dataset=amex
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=4000
+  - log.eval_every=500
+  - optim.lr=3.0e-4
+- name: ft_mbd_mini_full_frac01
+  script: finetune
+  description: 'Rodada 2B: MBD-mini (propensão a 4 produtos, AUC média). Curva de rótulos: fine-tuning completo do base_v1 com 1% das linhas de treino, 4000 passos.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=4000
+  - log.eval_every=500
+- name: ft_mbd_mini_scratch_frac01
+  script: finetune
+  description: 'Rodada 2B: MBD-mini (propensão a 4 produtos, AUC média). Curva de rótulos: do zero com 1% das linhas de treino, 4000 passos (referência sem pré-treino).'
+  set:
+  - init=null
+  - data.dataset=mbd_mini
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=4000
+  - log.eval_every=500
+  - optim.lr=3.0e-4
+- name: ft_home_credit_full_frac10
+  script: finetune
+  description: 'Rodada 2B: Home Credit (default, AUC). Curva de rótulos: fine-tuning completo do base_v1 com 10% das linhas de treino, 8000 passos.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=8000
+  - log.eval_every=1000
+- name: ft_home_credit_scratch_frac10
+  script: finetune
+  description: 'Rodada 2B: Home Credit (default, AUC). Curva de rótulos: do zero com 10% das linhas de treino, 8000 passos (referência sem pré-treino).'
+  set:
+  - init=null
+  - data.dataset=home_credit
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=8000
+  - log.eval_every=1000
+  - optim.lr=3.0e-4
+- name: ft_amex_full_frac10
+  script: finetune
+  description: 'Rodada 2B: AmEx (default, métrica AmEx). Curva de rótulos: fine-tuning completo do base_v1 com 10% das linhas de treino, 8000 passos.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=8000
+  - log.eval_every=1000
+- name: ft_amex_scratch_frac10
+  script: finetune
+  description: 'Rodada 2B: AmEx (default, métrica AmEx). Curva de rótulos: do zero com 10% das linhas de treino, 8000 passos (referência sem pré-treino).'
+  set:
+  - init=null
+  - data.dataset=amex
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=8000
+  - log.eval_every=1000
+  - optim.lr=3.0e-4
+- name: ft_mbd_mini_full_frac10
+  script: finetune
+  description: 'Rodada 2B: MBD-mini (propensão a 4 produtos, AUC média). Curva de rótulos: fine-tuning completo do base_v1 com 10% das linhas de treino, 8000 passos.'
+  set:
+  - init=runs/pragma/base_v1/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=8000
+  - log.eval_every=1000
+- name: ft_mbd_mini_scratch_frac10
+  script: finetune
+  description: 'Rodada 2B: MBD-mini (propensão a 4 produtos, AUC média). Curva de rótulos: do zero com 10% das linhas de treino, 8000 passos (referência sem pré-treino).'
+  set:
+  - init=null
+  - data.dataset=mbd_mini
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=8000
+  - log.eval_every=1000
+  - optim.lr=3.0e-4
+- name: abl_ref
+  script: train
+  description: 'Rodada 2C, ablação do pré-treino (20 mil passos, comparada pelo probe e pela val/loss): Referência: config padrão nas três bases.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+- name: abl_only_home_credit
+  script: train
+  description: 'Rodada 2C, ablação do pré-treino (20 mil passos, comparada pelo probe e pela val/loss): Só Home Credit (contra o pré-treino conjunto).'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - data.datasets=[home_credit]
+- name: abl_only_amex
+  script: train
+  description: 'Rodada 2C, ablação do pré-treino (20 mil passos, comparada pelo probe e pela val/loss): Só AmEx (contra o pré-treino conjunto).'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - data.datasets=[amex]
+- name: abl_only_mbd_mini
+  script: train
+  description: 'Rodada 2C, ablação do pré-treino (20 mil passos, comparada pelo probe e pela val/loss): Só MBD-mini (contra o pré-treino conjunto).'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - data.datasets=[mbd_mini]
+- name: abl_no_type
+  script: train
+  description: 'Rodada 2C, ablação do pré-treino (20 mil passos, comparada pelo probe e pela val/loss): Sem a máscara de tipo semântico (p_type=0).'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - mask.p_type=0.0
+- name: abl_no_event
+  script: train
+  description: 'Rodada 2C, ablação do pré-treino (20 mil passos, comparada pelo probe e pela val/loss): Sem a máscara de evento inteiro (p_event=0).'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - mask.p_event=0.0
+- name: abl_minilm
+  script: train
+  description: 'Rodada 2C, ablação do pré-treino (20 mil passos, comparada pelo probe e pela val/loss): Nomes de coluna e categorias via MiniLM congelado, em vez de hash de n-gramas.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - model.text_encoder=frozen
+- name: sweep_pretrain/trial_00
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 1/12 (20 mil passos): lr=0.0004335, weight_decay=0.05, d_model=128, history_layers=4, p_cell=0.1, p_event=0.05413, p_type=0.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0004335
+  - optim.weight_decay=0.05
+  - model.d_model=128
+  - model.history_layers=4
+  - mask.p_cell=0.1
+  - mask.p_event=0.05413
+  - mask.p_type=0
+- name: sweep_pretrain/trial_01
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 2/12 (20 mil passos): lr=0.000818, weight_decay=0.1, d_model=256, history_layers=6, p_cell=0.25, p_event=0.1859, p_type=0.1.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.000818
+  - optim.weight_decay=0.1
+  - model.d_model=256
+  - model.history_layers=6
+  - mask.p_cell=0.25
+  - mask.p_event=0.1859
+  - mask.p_type=0.1
+- name: sweep_pretrain/trial_02
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 3/12 (20 mil passos): lr=0.0008611, weight_decay=0.01, d_model=256, history_layers=8, p_cell=0.1, p_event=0.2644, p_type=0.1.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0008611
+  - optim.weight_decay=0.01
+  - model.d_model=256
+  - model.history_layers=8
+  - mask.p_cell=0.1
+  - mask.p_event=0.2644
+  - mask.p_type=0.1
+- name: sweep_pretrain/trial_03
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 4/12 (20 mil passos): lr=0.0005366, weight_decay=0.01, d_model=256, history_layers=4, p_cell=0.1, p_event=0.1854, p_type=0.2.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0005366
+  - optim.weight_decay=0.01
+  - model.d_model=256
+  - model.history_layers=4
+  - mask.p_cell=0.1
+  - mask.p_event=0.1854
+  - mask.p_type=0.2
+- name: sweep_pretrain/trial_04
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 5/12 (20 mil passos): lr=0.0001994, weight_decay=0.05, d_model=128, history_layers=6, p_cell=0.1, p_event=0.08107, p_type=0.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0001994
+  - optim.weight_decay=0.05
+  - model.d_model=128
+  - model.history_layers=6
+  - mask.p_cell=0.1
+  - mask.p_event=0.08107
+  - mask.p_type=0
+- name: sweep_pretrain/trial_05
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 6/12 (20 mil passos): lr=0.0004438, weight_decay=0.1, d_model=128, history_layers=6, p_cell=0.25, p_event=0.2993, p_type=0.05.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0004438
+  - optim.weight_decay=0.1
+  - model.d_model=128
+  - model.history_layers=6
+  - mask.p_cell=0.25
+  - mask.p_event=0.2993
+  - mask.p_type=0.05
+- name: sweep_pretrain/trial_06
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 7/12 (20 mil passos): lr=0.0009568, weight_decay=0.05, d_model=256, history_layers=8, p_cell=0.15, p_event=0.2221, p_type=0.1.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0009568
+  - optim.weight_decay=0.05
+  - model.d_model=256
+  - model.history_layers=8
+  - mask.p_cell=0.15
+  - mask.p_event=0.2221
+  - mask.p_type=0.1
+- name: sweep_pretrain/trial_07
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 8/12 (20 mil passos): lr=0.0001365, weight_decay=0.05, d_model=256, history_layers=8, p_cell=0.25, p_event=0.1276, p_type=0.1.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0001365
+  - optim.weight_decay=0.05
+  - model.d_model=256
+  - model.history_layers=8
+  - mask.p_cell=0.25
+  - mask.p_event=0.1276
+  - mask.p_type=0.1
+- name: sweep_pretrain/trial_08
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 9/12 (20 mil passos): lr=0.0003061, weight_decay=0.1, d_model=256, history_layers=4, p_cell=0.25, p_event=0.1394, p_type=0.1.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0003061
+  - optim.weight_decay=0.1
+  - model.d_model=256
+  - model.history_layers=4
+  - mask.p_cell=0.25
+  - mask.p_event=0.1394
+  - mask.p_type=0.1
+- name: sweep_pretrain/trial_09
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 10/12 (20 mil passos): lr=0.0002098, weight_decay=0.05, d_model=256, history_layers=6, p_cell=0.15, p_event=0.1479, p_type=0.05.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0002098
+  - optim.weight_decay=0.05
+  - model.d_model=256
+  - model.history_layers=6
+  - mask.p_cell=0.15
+  - mask.p_event=0.1479
+  - mask.p_type=0.05
+- name: sweep_pretrain/trial_10
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 11/12 (20 mil passos): lr=0.0007767, weight_decay=0.01, d_model=128, history_layers=8, p_cell=0.15, p_event=0.071, p_type=0.05.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0007767
+  - optim.weight_decay=0.01
+  - model.d_model=128
+  - model.history_layers=8
+  - mask.p_cell=0.15
+  - mask.p_event=0.071
+  - mask.p_type=0.05
+- name: sweep_pretrain/trial_11
+  script: train
+  description: 'Rodada 2D, busca de hiperparâmetros do pré-treino, sorteio 12/12 (20 mil passos): lr=0.0006125, weight_decay=0.1, d_model=128, history_layers=4, p_cell=0.25, p_event=0.06464, p_type=0.2.'
+  set:
+  - optim.steps=20000
+  - probe.every=10000
+  - optim.lr=0.0006125
+  - optim.weight_decay=0.1
+  - model.d_model=128
+  - model.history_layers=4
+  - mask.p_cell=0.25
+  - mask.p_event=0.06464
+  - mask.p_type=0.2

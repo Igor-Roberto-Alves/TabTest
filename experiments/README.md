@@ -4,6 +4,119 @@ Registro do que foi rodado e do que saiu. Cada execução tem o diretório `runs
 
 Todos os números usam o mesmo split por cliente, gravado em `data/banking/prepared/<base>/split.npy`, e as mesmas métricas, de `src/pragma/evaluate.py`. A métrica principal é a AUC no Home Credit, a AUC média dos 4 rótulos no MBD e a métrica oficial na AmEx.
 
+## Tarefas usadas na comparação
+
+Uma tarefa supervisionada por base, definida em [src/pragma/prepare.py](../src/pragma/prepare.py) (campo `task` de cada store). O modelo fundacional e o XGBoost veem as mesmas tabelas brutas e os mesmos clientes em cada split. A diferença é que o XGBoost recebe agregações por cliente feitas à mão ([src/baselines/](../src/baselines/)), e o modelo recebe os eventos crus.
+
+| Base | Tarefa | Tipo | Métrica principal | Linhas de rótulo (treino / val / teste) | Taxa de positivos |
+|---|---|---|---|---|---|
+| Home Credit | `default` (TARGET) | binária, 1 linha por cliente | AUC | 246.008 / 30.751 / 30.752 | 8,0% |
+| AmEx | `default` (target) | binária, 1 linha por cliente | métrica AmEx | 367.130 / 45.891 / 45.892 | 25,9% |
+| MBD-mini | `propensity` (target_1 a target_4) | 4 binárias, 1 linha por (cliente, mês) | AUC média dos 4 | 721.764 / 240.204 / 240.720 | 0,05% a 0,45% |
+
+### Home Credit: default no empréstimo solicitado
+
+**Definição.** Cada cliente fez um pedido de crédito, que é uma linha de `application_train.csv`. O rótulo oficial é `TARGET = 1` quando o cliente atrasou mais de X dias em pelo menos uma das Y primeiras parcelas desse empréstimo. Em todos os outros casos, `TARGET = 0`. A Home Credit não divulga X nem Y.
+
+**O que entra.** O perfil é o próprio pedido: 120 colunas de renda, valores, idade, emprego e scores externos. O histórico vem de 6 fontes de eventos anteriores ao pedido:
+- `bureau`: créditos em outras instituições;
+- `bureau_balance`: o saldo mensal desses créditos;
+- `previous_application`: pedidos anteriores na Home Credit;
+- `pos_cash`, `credit_card` e `installments`: o histórico desses contratos.
+
+O tempo de cada evento é medido em dias relativos à data do pedido. O split é aleatório por cliente, 80/10/10. Os 48.744 clientes do teste do Kaggle não têm rótulo e entram só no pré-treino.
+
+Exemplos do perfil (`application_train.csv`, algumas das 120 colunas):
+
+| SK_ID_CURR | TARGET | Contrato | Sexo | Renda | Crédito | Parcela | DAYS_BIRTH | DAYS_EMPLOYED | Ocupação | EXT_SOURCE_2 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 100002 | **1** | Cash loans | M | 202.500 | 406.597 | 24.700 | −9.461 (25 anos) | −637 | Working | 0,263 |
+| 100003 | 0 | Cash loans | F | 270.000 | 1.293.502 | 35.698 | −16.765 (45 anos) | −1.188 | State servant | 0,622 |
+| 100004 | 0 | Revolving loans | M | 67.500 | 135.000 | 6.750 | −19.046 (52 anos) | −225 | Working | 0,556 |
+
+Eventos do cliente 100002 em `bureau` (4 dos 8 créditos anteriores):
+
+| CREDIT_ACTIVE | CREDIT_TYPE | DAYS_CREDIT | AMT_CREDIT_SUM | AMT_CREDIT_SUM_DEBT | CREDIT_DAY_OVERDUE |
+|---|---|---|---|---|---|
+| Closed | Credit card | −1.125 | 40.761 | — | 0 |
+| Closed | Credit card | −476 | 0 | 0 | 0 |
+| Closed | Consumer credit | −1.437 | 135.000 | 0 | 0 |
+| Closed | Consumer credit | −1.121 | 19.071 | — | 0 |
+
+Eventos do cliente 100003 em `installments` (parcelas de contratos anteriores; o pagamento foi feito alguns dias antes do vencimento):
+
+| SK_ID_PREV | Parcela nº | DAYS_INSTALMENT | DAYS_ENTRY_PAYMENT | AMT_INSTALMENT | AMT_PAYMENT |
+|---|---|---|---|---|---|
+| 2396755 | 4 | −2.220 | −2.226 | 6.737 | 6.737 |
+| 1810518 | 2 | −686 | −690 | 98.357 | 98.357 |
+| 1810518 | 3 | −656 | −661 | 98.357 | 98.357 |
+
+### AmEx: default nos 120 dias após o último extrato
+
+**Definição.** Cada cliente tem até 13 extratos mensais de cartão, de março de 2017 a março de 2018. O rótulo é `target = 1` quando o cliente não pagou o valor devido em até 120 dias após a data do último extrato.
+
+**O que entra.** Os 5,5 milhões de extratos, cada um com 188 colunas anonimizadas e normalizadas. O prefixo indica a família da coluna:
+- `D_`: atraso (delinquency);
+- `S_`: gasto;
+- `P_`: pagamento;
+- `B_`: saldo;
+- `R_`: risco.
+
+Não há perfil fixo. O tempo de cada extrato é medido em dias relativos ao último (≤ 0). No store, as colunas são renomeadas pela família, por exemplo D_39 → "delinquency 39".
+
+**Métrica.** A métrica oficial da competição é a média entre o Gini normalizado e a fração dos defaults capturada nos 4% de maior score. Na origem, os negativos foram subamostrados a 5%, então a métrica dá peso 20 a cada negativo. Por isso a taxa de positivos de 25,9% na amostra não é a taxa real. O split é aleatório por cliente, 80/10/10.
+
+Últimos 4 extratos de dois clientes (algumas das 188 colunas):
+
+| Cliente | target | S_2 (data) | P_2 | D_39 | B_1 | B_2 | R_1 | S_3 | D_63 | B_30 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0000099d6b… | 0 | 2017-12-04 | 0,869 | 0,001 | 0,002 | 1,008 | 0,002 | 0,100 | CR | 0 |
+| 0000099d6b… | 0 | 2018-01-11 | 0,910 | 0,006 | 0,003 | 1,005 | 0,008 | 0,099 | CR | 0 |
+| 0000099d6b… | 0 | 2018-02-21 | 0,937 | 0,002 | 0,020 | 1,008 | 0,001 | 0,103 | CR | 0 |
+| 0000099d6b… | 0 | 2018-03-13 | 0,935 | 0,009 | 0,009 | 1,008 | 0,006 | 0,135 | CR | 0 |
+| 0000f99513… | **1** | 2017-12-17 | 0,408 | 0,097 | 0,932 | 0,021 | 0,008 | 0,167 | CO | 1 |
+| 0000f99513… | **1** | 2018-01-17 | 0,410 | 0,098 | 0,949 | 0,025 | 0,000 | 0,168 | CO | 1 |
+| 0000f99513… | **1** | 2018-02-05 | 0,413 | 0,647 | 0,982 | 0,024 | 0,010 | 0,150 | CO | 1 |
+| 0000f99513… | **1** | 2018-03-01 | 0,425 | 0,531 | 0,979 | 0,029 | 0,009 | 0,153 | CO | 1 |
+
+No cliente que deu default, P_2 é baixo, B_1 é alto, B_2 é baixo, e o atraso (D_39) dispara nos últimos meses.
+
+### MBD-mini: propensão a 4 produtos no mês
+
+**Definição.** Cada linha de rótulo é um par (cliente, mês m), de fevereiro de 2022 a janeiro de 2023, com até 12 linhas por cliente. Os rótulos são 4 binários: `target_i = 1` quando o cliente contrata o produto i durante o mês m. O banco não diz quais são os produtos.
+
+**O que entra.** Só os eventos anteriores ao dia 1 de m. Esse ponto de corte é o `cutoff` da linha de rótulo e evita vazamento. Há 3 fontes:
+- `trx`: transações, com valor, tipo, subtipo, moeda e códigos de origem e destino;
+- `geo`: geolocalização, com geohash em 3 resoluções;
+- `dialog`: conversas com o banco, cada uma um embedding reduzido por PCA a 16 colunas.
+
+Não há perfil fixo. O split segue os folds oficiais: folds 0 a 2 para treino, 3 para validação e 4 para teste. Os positivos são raríssimos, por isso a AUC por produto oscila bastante.
+
+Exemplo: cliente 27344f76…, com 335 transações, 622 eventos de geolocalização e 1 diálogo. As linhas de rótulo dos 3 últimos meses:
+
+| mon | target_1 | target_2 | target_3 | target_4 | Eventos visíveis (antes do dia 1) |
+|---|---|---|---|---|---|
+| 2022-11 | 0 | 0 | 0 | 0 | até 31/10/2022 |
+| 2022-12 | 0 | 0 | 0 | 0 | até 30/11/2022 |
+| 2023-01 | 0 | **1** | 0 | 0 | até 31/12/2022 |
+
+Primeiras transações do mesmo cliente (`trx`, algumas colunas):
+
+| event_time | amount | event_type | event_subtype | currency | dst_type11 | dst_type12 |
+|---|---|---|---|---|---|---|
+| 2021-01-03 09:04 | 8.535 | 11 | 32 | 11 | 1.569 | 7.793 |
+| 2021-01-03 14:16 | 4.658.568 | 1 | 12 | 11 | 306 | 26.766 |
+| 2021-01-04 13:21 | 40.100 | 1 | 12 | 11 | 306 | 26.766 |
+| 2021-01-08 09:38 | 244.087 | 1 | 12 | 11 | 780 | 14.702 |
+
+Geolocalização (`geo`):
+
+| event_time | geohash_4 | geohash_5 | geohash_6 |
+|---|---|---|---|
+| 2021-12-21 11:57 | 48215 | 89615 | 2033453 |
+| 2022-01-04 09:37 | 48215 | 89615 | 155870 |
+| 2022-06-26 07:56 | 11777 | 44410 | 2380765 |
+
 ## Baselines XGBoost (26/10/2026)
 
 Código em [src/baselines/](../src/baselines/) e config em [configs/baselines/xgb.yaml](../configs/baselines/xgb.yaml).
