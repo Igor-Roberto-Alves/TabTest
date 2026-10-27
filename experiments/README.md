@@ -80,3 +80,18 @@ Leitura:
 - **O pré-treino vale cerca de 0,12 de AUC.** Com o mesmo orçamento, o fine-tuning completo chega a 0,792 e o treino do zero, a 0,670. Na validação, a diferença já aparece no passo 1.000 (0,760 contra 0,594).
 - **O fine-tuning completo fica a 0,009 do XGBoost**, que tem 727 features feitas à mão, depois de só 6 mil passos.
 - O LoRA e o fine-tuning completo atingiram o melhor ponto no fim ou perto dele. Mais passos devem ajudar.
+
+**AmEx, default (métrica AmEx):**
+
+| Modo | Val | **Teste** | AUC teste | KS teste | Brier teste |
+|---|---|---|---|---|---|
+| Probe | 0,715 | 0,726 | 0,945 | 0,755 | 0,082 |
+| LoRA r=8 | 0,777 | 0,784 | 0,959 | 0,790 | 0,070 |
+| Fine-tuning completo | 0,784 | **0,7915** | 0,961 | 0,795 | 0,068 |
+| Do zero, sem pré-treino | 0,770 | 0,774 | 0,957 | 0,783 | 0,072 |
+| XGBoost 100% | 0,792 | **0,7923** | 0,962 | 0,797 | 0,068 |
+
+Leitura:
+
+- **O fine-tuning completo empata com o XGBoost** (0,7915 contra 0,7923), que usa 1096 features feitas à mão.
+- **O ganho do pré-treino é menor que no Home Credit** (+0,017 contra o treino do zero). A AmEx é uma sequência curta e regular de extratos, com nomes de coluna sem semântica, e o treino do zero já aprende bem nesse formato.
