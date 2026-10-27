@@ -5,6 +5,8 @@ Uso:
     python -m src.baselines.xgb amex --label-frac 0.1            # curva de rótulos (semente 0)
     python -m src.baselines.xgb mbd_mini --run-name xgb_mbd_mini
     python -m src.baselines.xgb amex --max-rows 200000 --run-name _teste_amex   # teste rápido
+    python -m src.baselines.xgb amex --emb base_v1               # + embedding do modelo fundacional
+    python -m src.baselines.xgb amex --emb base_v1 --emb-only    # só o embedding
 
 Protocolo: split por cliente e linhas de rótulo de data/banking/prepared/<base>/; treino no split
 de treino (ou numa fração dele, com a mesma subamostra de src/pragma/finetune.py), early stopping
@@ -14,6 +16,9 @@ teste avaliado uma vez com a combinação vencedora. No MBD há um modelo por r�
 
 Cada execução grava em runs/baselines/<run>/: status.json (RunStatus), metrics.jsonl,
 results.json e feature_importance.csv. Execuções de teste começam com "_" e ficam fora do painel.
+
+--emb <tag> junta às features as colunas emb_000..emb_<d-1> de data/banking/features/emb_<tag>_<base>.npy
+(src/pragma/export_embeddings.py), uma linha por linha de rótulo do store.
 """
 
 import argparse
@@ -77,6 +82,13 @@ def load_features(base, max_rows=None, rebuild=False):
     return (*read_cache(path), fe_s)
 
 
+def load_embedding(tag, base, n_rows):
+    E = np.load(FEATURES / f"emb_{tag}_{base}.npy", mmap_mode="r")
+    if len(E) != n_rows:
+        raise ValueError(f"embedding com {len(E)} linhas, o store tem {n_rows} linhas de rótulo")
+    return E, [f"emb_{j:03d}" for j in range(E.shape[1])]
+
+
 def align(index, labels):
     """pos (R,): linha de A de cada linha de rótulo do store, pelo id (e corte, no MBD); -1 se não há features."""
     if index.nlevels == 2:
@@ -97,39 +109,60 @@ def main():
     p.add_argument("--set", nargs="*", default=[], help="sobrescritas, ex.: max_rounds=200 params.max_depth=7")
     p.add_argument("--max-rows", type=int, default=None, help="só para testes: limita os dados brutos lidos")
     p.add_argument("--rebuild", action="store_true", help="recalcula as features mesmo com cache")
+    p.add_argument("--emb", default=None, help="tag do embedding (src/pragma/export_embeddings.py) a juntar")
+    p.add_argument("--emb-only", action="store_true", help="usa só o embedding, sem as features à mão")
     args = p.parse_args()
 
     cfg = load_config(args.config, args.set)
     frac = args.label_frac
-    run_name = args.run_name or f"xgb_{args.base}" + (f"_frac{frac:g}" if frac < 1 else "")
+    if args.emb_only and not args.emb:
+        p.error("--emb-only exige --emb")
+    emb_tag = "" if not args.emb else f"_emb{'only' if args.emb_only else ''}_{args.emb}"
+    run_name = args.run_name or f"xgb_{args.base}{emb_tag}" + (f"_frac{frac:g}" if frac < 1 else "")
     run_dir = ROOT / "runs" / "baselines" / run_name
     labels = Labels(args.base)
     task, metric = labels.task, primary_metric(labels.task)
     k = labels.y.shape[1]
     grid = [{**cfg["params"], **g} for g in cfg["grid"][args.base]]
+    features = FEATURE_TEXT[args.base]
+    if args.emb:
+        emb_text = f"embedding [CLS] congelado do checkpoint {args.emb} (src/pragma/export_embeddings.py)"
+        features = emb_text if args.emb_only else f"{features}; mais o {emb_text}"
     description = (f"XGBoost (CPU) em {args.base}, tarefa {task['name']}, com {frac:.0%} das linhas de treino. "
-                   f"Features: {FEATURE_TEXT[args.base]}. Grade de {len(grid)} combinações escolhida na validação.")
+                   f"Features: {features}. Grade de {len(grid)} combinações escolhida na validação.")
     run = RunStatus(run_dir, name=run_name, group="baselines", description=description,
                     total_steps=len(grid) * cfg["max_rounds"] * k,
                     config={"base": args.base, "label_frac": frac, "max_rounds": cfg["max_rounds"],
                             "early_stopping": cfg["early_stopping"], "grid": cfg["grid"][args.base],
-                            "params": cfg["params"], "max_rows": args.max_rows})
+                            "params": cfg["params"], "max_rows": args.max_rows,
+                            "emb": args.emb, "emb_only": args.emb_only})
     record = Recorder(run_dir, run)
     t_start = time.time()
     try:
-        index, names, A, fe_s = load_features(args.base, args.max_rows, args.rebuild)
-        names = clean_names(names)
-        pos = align(index, labels)
-        found = pos >= 0
-        log(f"{args.base}: {A.shape[1]} features, {found.sum()} de {len(found)} linhas de rótulo com features")
-        record(0, {"fe/n_features": A.shape[1], "fe/seconds": fe_s, "fe/rows_found": found.sum()})
+        if args.emb_only:
+            A, names, fe_s = None, [], 0.0
+            found = np.ones(len(labels.y), dtype=bool)
+        else:
+            index, names, A, fe_s = load_features(args.base, args.max_rows, args.rebuild)
+            names = clean_names(names)
+            pos = align(index, labels)
+            found = pos >= 0
+        E, emb_names = load_embedding(args.emb, args.base, len(labels.y)) if args.emb else (None, [])
+        n_feat = len(names) + len(emb_names)
+        log(f"{args.base}: {n_feat} features, {found.sum()} de {len(found)} linhas de rótulo com features")
+        record(0, {"fe/n_features": n_feat, "fe/seconds": fe_s, "fe/rows_found": found.sum()})
 
         rows = {s: labels.rows(s)[found[labels.rows(s)]] for s in ("train", "val", "test")}
         rows["train"] = subsample(rows["train"], int(round(frac * len(rows["train"]))), cfg["seed"])
         log(f"linhas: treino {len(rows['train'])} (label_frac={frac}), validação {len(rows['val'])}, "
             f"teste {len(rows['test'])}")
-        Xtr, Xva, Xte = (A[pos[rows[s]]] for s in ("train", "val", "test"))
+        def matrix(r):
+            parts = ([] if A is None else [A[pos[r]]]) + ([] if E is None else [np.asarray(E[r], dtype=np.float32)])
+            return parts[0] if len(parts) == 1 else np.hstack(parts)
+
+        Xtr, Xva, Xte = (matrix(rows[s]) for s in ("train", "val", "test"))
         del A
+        names = names + emb_names
         Y = labels.y
         P = {s: np.zeros((len(rows[s]), k), dtype=np.float64) for s in ("val", "test")}
         chosen, boosters, offset = [], [], 0
