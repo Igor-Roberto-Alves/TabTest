@@ -364,3 +364,31 @@ Leitura:
 2. **As duas máscaras estruturais importam, e de formas diferentes.** A de tipo é essencial para o Home Credit (−0,065 sem ela), cujas 6 fontes têm colunas relacionadas. A de evento ajuda nas três bases, mais no AmEx e no MBD, onde a sequência temporal pesa.
 3. **O texto por hash é melhor que o MiniLM congelado** (−0,04 no HC e no MBD com o MiniLM). Os nomes de colunas são códigos e abreviações ("delinquency 39", "AMT_CREDIT_SUM"), em que um modelo de linguagem genérico ajuda pouco, e o hash treinável se adapta a eles.
 4. Nenhuma ablação chega perto do ganho de treinar mais: o `base_v2b` sobe os três probes em ~0,03 sobre o `base_v1`.
+
+### Bloco D: busca de hiperparâmetros do pré-treino, 12 sorteios de 20 mil passos (concluído em 28/10/2026, 13h10)
+
+Sorteios de `configs/pragma/sweep_pretrain.yaml`; probes na validação no passo 20 mil. Referência: `abl_ref` (configuração do `base_v1`: lr 3e-4, wd 0,05, d=256, 6 camadas de histórico, p_cell 0,15, p_event 0,1, p_type 0,1), com probes 0,672 / 0,659 / 0,670 e média 0,667.
+
+| Trial | lr | wd | d | camadas | p_cell | p_event | p_type | HC | AmEx | MBD | Média |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **03** | 5,4e-4 | 0,01 | 256 | 4 | 0,10 | 0,19 | 0,20 | 0,663 | **0,708** | 0,683 | **0,685** |
+| 01 | 8,2e-4 | 0,1 | 256 | 6 | 0,25 | 0,19 | 0,10 | 0,656 | 0,703 | 0,674 | 0,678 |
+| 09 | 2,1e-4 | 0,05 | 256 | 6 | 0,15 | 0,15 | 0,05 | 0,649 | 0,651 | **0,717** | 0,672 |
+| 08 | 3,1e-4 | 0,1 | 256 | 4 | 0,25 | 0,14 | 0,10 | **0,672** | 0,695 | 0,633 | 0,667 |
+| 04 | 2,0e-4 | 0,05 | 128 | 6 | 0,10 | 0,08 | 0 | 0,630 | 0,657 | 0,689 | 0,659 |
+| 07 | 1,4e-4 | 0,05 | 256 | 8 | 0,25 | 0,13 | 0,10 | 0,627 | 0,683 | 0,666 | 0,659 |
+| 02 | 8,6e-4 | 0,01 | 256 | 8 | 0,10 | 0,26 | 0,10 | 0,633 | 0,682 | 0,660 | 0,658 |
+| 05 | 4,4e-4 | 0,1 | 128 | 6 | 0,25 | 0,30 | 0,05 | 0,618 | 0,645 | 0,689 | 0,651 |
+| 06 | 9,6e-4 | 0,05 | 256 | 8 | 0,15 | 0,22 | 0,10 | 0,657 | 0,686 | 0,577 | 0,640 |
+| 10 | 7,8e-4 | 0,01 | 128 | 8 | 0,15 | 0,07 | 0,05 | 0,629 | 0,643 | 0,631 | 0,634 |
+| 11 | 6,1e-4 | 0,1 | 128 | 4 | 0,25 | 0,06 | 0,20 | 0,631 | 0,599 | 0,633 | 0,621 |
+| 00 | 4,3e-4 | 0,05 | 128 | 4 | 0,10 | 0,05 | 0 | 0,633 | 0,640 | 0,577 | 0,617 |
+
+Leitura:
+
+1. **d_model=256 é melhor que 128:** os 5 sorteios com 128 estão entre os piores (média ≤ 0,659).
+2. **Mais camadas de histórico não ajudam em 20 mil passos:** os 4 sorteios com 8 camadas ficam abaixo dos de 4 a 6 camadas com o mesmo d.
+3. **Máscaras de evento e de tipo mais fortes ajudam**, confirmando o bloco C: os dois melhores (03 e 01) usam p_event ≈ 0,19, contra 0,10 no `base_v1`.
+4. **O AmEx é o que mais varia com os hiperparâmetros** (0,60 a 0,71). O `base_v1` está perto do pior caso para ele (0,659), e os melhores sorteios recuperam o que o AmEx perdia no pré-treino conjunto.
+5. **Nenhum sorteio ganha nas três bases ao mesmo tempo:** cada base prefere uma região diferente (09 é o melhor no MBD, 08 no HC, 03 no AmEx).
+6. **Candidato para o próximo pré-treino longo:** o trial_03 (lr 5,4e-4, wd 0,01, 4 camadas, p_event 0,19, p_type 0,2), treinado com os 300 mil passos do `base_v2b`. Ganha +0,018 de média sobre a referência no mesmo orçamento.
