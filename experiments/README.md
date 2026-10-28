@@ -307,3 +307,26 @@ Leitura:
 2. **Com 3 sementes, o resultado contra o XGBoost fica claro:** o modelo fundacional perde no Home Credit (−0,012), empata no AmEx (+0,001, dentro de um desvio-padrão) e ganha no MBD (+0,021, cerca de cinco desvios-padrão).
 3. **O ganho do pré-treino sobre o "do zero" continua grande com o mesmo orçamento de 20 mil passos:** +0,098 no Home Credit, +0,007 no AmEx e +0,051 no MBD. O "do zero" melhora com mais passos, mas não alcança o fine-tuning.
 4. No MBD e no AmEx, o XGBoost com o embedding do `base_v1` como feature (0,816 e 0,794) fica entre o XGBoost feito à mão e o fine-tuning.
+
+### Bloco B: curva de rótulos (concluído em 27/10/2026, 23h30)
+
+Fine-tuning a partir do `base_v1` e do zero com 1% dos rótulos (4 mil passos, avaliação a cada 500) e com 10% (8 mil passos, avaliação a cada 1.000). Os 100% vêm do bloco A. O XGBoost usa as mesmas linhas sorteadas.
+
+| Base | Rótulos | FT completo | Do zero | XGB feito à mão | XGB + embedding | Melhor passo do FT |
+|---|---|---|---|---|---|---|
+| Home Credit (AUC) | 1% | 0,659 | 0,572 | **0,741** | 0,740 | 500 de 4.000 |
+| | 10% | 0,751 | 0,712 | **0,776** | 0,774 | 1.000 de 8.000 |
+| | 100% | 0,789 | 0,691 | **0,801** | 0,800 | 8–16 mil |
+| AmEx (métrica AmEx) | 1% | 0,691 | 0,695 | **0,751** | 0,750 | 3.000 de 4.000 |
+| | 10% | 0,772 | 0,769 | 0,780 | **0,781** | 2.000 de 8.000 |
+| | 100% | 0,793 | 0,787 | 0,792 | **0,794** | 14–20 mil |
+| MBD-mini (AUC média) | 1% | 0,646 | 0,650 | **0,736** | 0,726 | 500 de 4.000 |
+| | 10% | 0,772 | 0,746 | 0,773 | **0,777** | 4.000 de 8.000 |
+| | 100% | **0,823** | 0,772 | 0,802 | 0,816 | 12–20 mil |
+
+Leitura:
+
+1. **A hipótese de que o pré-treino ganha mais com poucos rótulos não se confirmou com este protocolo de ajuste.** A diferença para o XGBoost piora quando os rótulos diminuem: −0,01 a +0,02 com 100%, −0,03 a 0,00 com 10% e −0,06 a −0,09 com 1%.
+2. **O protocolo é o suspeito principal.** Com 1% e 10%, o melhor ponto na validação costuma ser a primeira ou a segunda avaliação, e depois a nota só cai. Com taxa de aprendizado de 1e-4 na rede inteira, o modelo decora as poucas linhas em centenas de passos (com 1%, são ~100 épocas em 4 mil passos) e apaga o que o pré-treino tinha aprendido. No AmEx e no MBD a 1%, o FT chega a empatar com a rede do zero.
+3. **O pré-treino ainda ajuda onde há várias fontes:** no Home Credit, +0,09 com 1%, +0,04 com 10% e +0,10 com 100% sobre a rede do zero. No AmEx (uma fonte só), o ganho é pequeno em qualquer fração.
+4. **Próximo passo, bloco B′:** refazer 1% e 10% com taxa de aprendizado menor (3e-5), avaliação a cada 50 a 100 passos e no máximo 1.500 passos a 1%, e incluir probe linear e LoRA, que treinam poucos parâmetros e sobreajustam menos. Só então a curva de rótulos mede o pré-treino, e não o sobreajuste.
