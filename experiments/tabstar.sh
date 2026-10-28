@@ -13,7 +13,9 @@ for what in "$@"; do
     if [ "$what" = raw ]; then
       $PY -m src.baselines.tabstar "$base" --max-train 20000
     else
-      $PY -m src.baselines.tabstar "$base" --max-train 20000 --emb "$what"
+      # na AmEx, cruas + embedding passam de 200 colunas e o lote de 64 estoura os 20 GB da GPU
+      lb=64; [ "$base" = amex ] && lb=32
+      $PY -m src.baselines.tabstar "$base" --max-train 20000 --emb "$what" --lora-batch $lb
     fi
   done
 done

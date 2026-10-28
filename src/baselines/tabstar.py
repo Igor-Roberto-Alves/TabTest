@@ -50,6 +50,8 @@ def main():
     p.add_argument("--val-max", type=int, default=5000, help="linhas de validação usadas no early stopping")
     p.add_argument("--max-epochs", type=int, default=50)
     p.add_argument("--patience", type=int, default=5)
+    p.add_argument("--lora-batch", type=int, default=64,
+                   help="lote por passo do LoRA; o lote global fica em 128 por acúmulo (32 cabe na AmEx com embedding)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--run-name", default=None)
     args = p.parse_args()
@@ -66,7 +68,8 @@ def main():
                    f"de treino. Features: {features}. Early stopping em {args.val_max} linhas da validação.")
     run = RunStatus(run_dir, name=run_name, group="baselines", description=description, total_steps=args.max_epochs,
                     config={"base": args.base, "emb": args.emb, "max_train": args.max_train, "val_max": args.val_max,
-                            "max_epochs": args.max_epochs, "patience": args.patience, "seed": args.seed, "raw": True})
+                            "max_epochs": args.max_epochs, "patience": args.patience, "lora_batch": args.lora_batch,
+                            "seed": args.seed, "raw": True})
     record = Recorder(run_dir, run)
     t_start = time.time()
     try:
@@ -97,7 +100,7 @@ def main():
         target = task["labels"][0]
         # sem device, o TabSTAR recusa uma GPU que já tenha outro processo
         model = TabSTARClassifier(random_state=args.seed, max_epochs=args.max_epochs, patience=args.patience,
-                                  verbose=True, device="cuda")
+                                  lora_batch=args.lora_batch, global_batch=128, verbose=True, device="cuda")
         t_train = time.time()
         model.fit(frame(rows["train"]), pd.Series(y[rows["train"]], name=target),
                   frame(rows["es"]), pd.Series(y[rows["es"]], name=target))
