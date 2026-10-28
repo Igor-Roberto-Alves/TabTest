@@ -343,3 +343,24 @@ Mesma configuração do `base_v1`, treinada do zero com 300 mil passos e cosseno
 | `base_v2b`, passo 300 mil (final) | **3,544** | **0,722** | **0,734** | **0,714** |
 
 Leitura: **o `base_v1` estava subtreinado.** Com 3× mais passos, a perda cai 0,22 e os três probes sobem de 0,03 a 0,04, um ganho maior que qualquer diferença entre ablações do bloco C. A maior parte do ganho vem até os 200 mil passos; de 200 para 300 mil, o ganho é pequeno (+0,002 a +0,009). Próximo passo: repetir o fine-tuning do bloco A (e o B′) a partir do `ckpt_step300k.pt` do `base_v2b` para ver quanto disso chega às tarefas.
+
+### Bloco C: ablações do pré-treino, 20 mil passos cada (concluído em 28/10/2026, 04h55)
+
+Cada ablação muda uma coisa em relação ao `abl_ref` (configuração do `base_v1` encurtada para 20 mil passos). Métrica: probe linear na validação ao fim do treino. Nas ablações com uma só base, só existe o probe dessa base.
+
+| Execução | O que muda | Probe HC (AUC) | Probe AmEx (métrica AmEx) | Probe MBD (AUC) |
+|---|---|---|---|---|
+| `abl_ref` | referência: três bases, todas as máscaras, texto por hash | 0,672 | 0,659 | 0,670 |
+| `abl_only_home_credit` | só Home Credit | 0,652 (−0,020) | — | — |
+| `abl_only_amex` | só AmEx | — | **0,720 (+0,061)** | — |
+| `abl_only_mbd_mini` | só MBD-mini | — | — | 0,627 (−0,043) |
+| `abl_no_type` | sem máscara de tipo (`p_type=0`) | 0,607 (−0,065) | 0,656 (−0,003) | 0,679 (+0,009) |
+| `abl_no_event` | sem máscara de evento (`p_event=0`) | 0,659 (−0,013) | 0,629 (−0,030) | 0,643 (−0,027) |
+| `abl_minilm` | nomes por MiniLM congelado em vez de hash | 0,632 (−0,040) | 0,660 (+0,001) | 0,633 (−0,037) |
+
+Leitura:
+
+1. **O pré-treino conjunto ajuda as bases com várias fontes (Home Credit +0,02, MBD +0,04) e atrapalha o AmEx (−0,06).** O AmEx tem uma fonte só, com 188 colunas de extrato, diferente das outras. No conjunto, ele recebe cerca de um terço dos passos e disputa capacidade com tabelas que não o ajudam. Isso combina com o ganho pequeno do pré-treino no AmEx nos blocos A e B. Vale testar um peso maior para o AmEx na amostragem (`temperature`), ou um modelo maior.
+2. **As duas máscaras estruturais importam, e de formas diferentes.** A de tipo é essencial para o Home Credit (−0,065 sem ela), cujas 6 fontes têm colunas relacionadas. A de evento ajuda nas três bases, mais no AmEx e no MBD, onde a sequência temporal pesa.
+3. **O texto por hash é melhor que o MiniLM congelado** (−0,04 no HC e no MBD com o MiniLM). Os nomes de colunas são códigos e abreviações ("delinquency 39", "AMT_CREDIT_SUM"), em que um modelo de linguagem genérico ajuda pouco, e o hash treinável se adapta a eles.
+4. Nenhuma ablação chega perto do ganho de treinar mais: o `base_v2b` sobe os três probes em ~0,03 sobre o `base_v1`.
