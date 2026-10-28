@@ -4,6 +4,7 @@ Uso:
     python -m src.baselines.tabstar amex                        # só as colunas cruas (as mesmas do XGB --raw)
     python -m src.baselines.tabstar amex --emb base_v2b         # cruas + embedding [CLS] congelado
     python -m src.baselines.tabstar home_credit --max-train 5000 --run-name _teste_hc   # teste rápido
+    python -m src.baselines.tabstar amex --max-train 0          # todas as linhas de treino (execução ..._full)
 
 Protocolo igual ao de src/baselines/xgb.py: linhas de rótulo e split do store, subamostra do treino
 com a mesma semente (aqui limitada por --max-train, porque o TabSTAR faz fine-tuning LoRA na GPU), early
@@ -46,7 +47,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("base", choices=BASES)
     p.add_argument("--emb", default=None, help="tag do embedding (src/pragma/export_embeddings.py) a juntar")
-    p.add_argument("--max-train", type=int, default=20000, help="linhas de treino (subamostra com a semente)")
+    p.add_argument("--max-train", type=int, default=20000,
+                   help="linhas de treino (subamostra com a semente); 0 = todas as linhas de treino")
     p.add_argument("--val-max", type=int, default=5000, help="linhas de validação usadas no early stopping")
     p.add_argument("--max-epochs", type=int, default=50)
     p.add_argument("--patience", type=int, default=5)
@@ -56,7 +58,8 @@ def main():
     p.add_argument("--run-name", default=None)
     args = p.parse_args()
 
-    n_tag = f"_n{args.max_train // 1000}k" if args.max_train % 1000 == 0 else f"_n{args.max_train}"
+    max_train = args.max_train or None
+    n_tag = "_full" if max_train is None else f"_n{max_train // 1000}k" if max_train % 1000 == 0 else f"_n{max_train}"
     run_name = args.run_name or f"tabstar_{args.base}_raw" + (f"_emb_{args.emb}" if args.emb else "") + n_tag
     run_dir = ROOT / "runs" / "baselines" / run_name
     labels = Labels(args.base)
@@ -64,10 +67,10 @@ def main():
     features = RAW_TEXT[args.base]
     if args.emb:
         features += f"; mais o embedding [CLS] congelado do checkpoint {args.emb} (256 dimensões)"
-    description = (f"TabSTAR (fine-tuning LoRA na GPU) em {args.base}, tarefa {task['name']}, com {args.max_train} linhas "
-                   f"de treino. Features: {features}. Early stopping em {args.val_max} linhas da validação.")
+    description = (f"TabSTAR (fine-tuning LoRA na GPU) em {args.base}, tarefa {task['name']}, com "
+                   f"{'todas as' if max_train is None else max_train} linhas de treino. Features: {features}. Early stopping em {args.val_max} linhas da validação.")
     run = RunStatus(run_dir, name=run_name, group="baselines", description=description, total_steps=args.max_epochs,
-                    config={"base": args.base, "emb": args.emb, "max_train": args.max_train, "val_max": args.val_max,
+                    config={"base": args.base, "emb": args.emb, "max_train": max_train, "val_max": args.val_max,
                             "max_epochs": args.max_epochs, "patience": args.patience, "lora_batch": args.lora_batch,
                             "seed": args.seed, "raw": True})
     record = Recorder(run_dir, run)
@@ -87,7 +90,7 @@ def main():
             f"{found.sum()} de {len(found)} linhas de rótulo com features")
 
         rows = {s: labels.rows(s)[found[labels.rows(s)]] for s in ("train", "val", "test")}
-        rows["train"] = subsample(rows["train"], args.max_train, args.seed)
+        rows["train"] = subsample(rows["train"], max_train, args.seed)
         rows["es"] = subsample(rows["val"], args.val_max, args.seed)
         log(f"linhas: treino {len(rows['train'])}, early stopping {len(rows['es'])}, "
             f"validação {len(rows['val'])}, teste {len(rows['test'])}")
@@ -121,7 +124,7 @@ def main():
         log(f"val: {metric} {val[metric]:.4f} auc {val['auc']:.4f} | test: {metric} {test[metric]:.4f} "
             f"auc {test['auc']:.4f} | {total_s:.0f}s")
         results = {"run_name": run_name, "base": args.base, "task": task, "label_frac": None,
-                   "max_train": args.max_train, "primary_metric": metric, "n_features": len(cols), "emb": args.emb,
+                   "max_train": max_train, "primary_metric": metric, "n_features": len(cols), "emb": args.emb,
                    "n_rows": {s: int(len(r)) for s, r in rows.items()}, "val": val, "test": test,
                    "seconds": {"train": train_s, "total": total_s}}
         (run_dir / "results.json").write_text(json.dumps(results, indent=2, default=float))
