@@ -427,7 +427,7 @@ Leitura:
 1. **O B′ corrige o sobreajuste no AmEx com 1%** (0,691 → 0,750, empatando com o XGB feito à mão) e melhora o HC (+0,018 com 1%, +0,009 com 10%). No MBD com 1% não muda nada.
 2. **Com 1% dos rótulos, o LoRA é o melhor modo do modelo fundacional:** +0,034 sobre o FT B′ no HC e +0,032 no MBD. Com poucos rótulos, mexer em menos parâmetros protege o que o pré-treino aprendeu.
 3. **Com 10% no MBD, o LoRA fica atrás** (0,752 contra 0,772 do FT original): a tarefa de 4 produtos já tem rótulos suficientes para o backbone se ajustar.
-4. **O XGB feito à mão continua à frente com poucos rótulos em todas as bases**, por 0,003 a 0,06. O modelo fundacional supera o XGB cru no HC com 10% e no AmEx com 10%, mas não as features feitas à mão.
+4. **O XGB feito à mão continua à frente com poucos rótulos em todas as bases**, por 0,001 a 0,06. O modelo fundacional supera o XGB cru no HC com 10% e no AmEx com 10%, mas não as features feitas à mão.
 5. As execuções B′ a partir do `base_v2b` estão na fila do PC da esquerda.
 
 ### TabSTAR com 20 mil linhas de treino (28/10/2026)
