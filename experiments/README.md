@@ -392,3 +392,54 @@ Leitura:
 4. **O AmEx é o que mais varia com os hiperparâmetros** (0,60 a 0,71). O `base_v1` está perto do pior caso para ele (0,659), e os melhores sorteios recuperam o que o AmEx perdia no pré-treino conjunto.
 5. **Nenhum sorteio ganha nas três bases ao mesmo tempo:** cada base prefere uma região diferente (09 é o melhor no MBD, 08 no HC, 03 no AmEx).
 6. **Candidato para o próximo pré-treino longo:** o trial_03 (lr 5,4e-4, wd 0,01, 4 camadas, p_event 0,19, p_type 0,2), treinado com os 300 mil passos do `base_v2b`. Ganha +0,018 de média sobre a referência no mesmo orçamento.
+
+## Rodada 3 (`experiments/round3_direita.yaml`, `experiments/round3_esquerda.yaml`)
+
+Duas perguntas: o `base_v2b` (300 mil passos) melhora o fine-tuning, e um protocolo mais cuidadoso para poucos rótulos (B′) corrige o sobreajuste do bloco B? O B′ usa lr do backbone 3e-5 no FT completo e 1e-4 no LoRA, avaliação a cada 50 passos com 1% e a cada 200 com 10%, e 1.500 ou 4.000 passos. O PC da direita roda o B′ a partir do `base_v1`, e o da esquerda o FT de 20 mil passos e o B′ a partir do `base_v2b`.
+
+### FT completo de 20 mil passos a partir do base_v2b (PC da esquerda)
+
+Teste, 100% dos rótulos. A referência `base_v1` é a média das 3 sementes do bloco A.
+
+| Base | base_v1 (média) | base_v2b | XGB feito à mão |
+|---|---|---|---|
+| Home Credit (AUC) | 0,789 | 0,791 (+0,002) | 0,801 |
+| AmEx (métrica AmEx) | 0,793 | 0,794 (+0,001) | 0,792 |
+| MBD-mini (AUC média) | 0,823 | 0,820 (−0,003) | 0,802 |
+
+Os probes do `base_v2b` subiram ~0,03, mas com todos os rótulos o fine-tuning quase não muda: a diferença está dentro da variação entre sementes do bloco A.
+
+### Protocolo B′ a partir do base_v1 (PC da direita, concluído em 28/10/2026, 19h10)
+
+Teste. "Original" é o bloco B (lr 1e-4 e avaliação esparsa).
+
+| Base | Rótulos | FT original | FT B′ | LoRA B′ | Do zero | XGB feito à mão | XGB cru |
+|---|---|---|---|---|---|---|---|
+| Home Credit | 1% | 0,659 | 0,677 | **0,711** | 0,572 | 0,741 | 0,724 |
+| Home Credit | 10% | 0,751 | 0,760 | **0,765** | 0,712 | 0,776 | 0,748 |
+| AmEx | 1% | 0,691 | **0,750** | 0,749 | 0,695 | 0,751 | 0,747 |
+| AmEx | 10% | 0,772 | 0,776 | **0,777** | 0,769 | 0,780 | 0,774 |
+| MBD-mini | 1% | 0,646 | 0,647 | **0,679** | 0,650 | 0,736 | — |
+| MBD-mini | 10% | **0,772** | 0,767 | 0,752 | 0,746 | 0,773 | — |
+
+Leitura:
+
+1. **O B′ corrige o sobreajuste no AmEx com 1%** (0,691 → 0,750, empatando com o XGB feito à mão) e melhora o HC (+0,018 com 1%, +0,009 com 10%). No MBD com 1% não muda nada.
+2. **Com 1% dos rótulos, o LoRA é o melhor modo do modelo fundacional:** +0,034 sobre o FT B′ no HC e +0,032 no MBD. Com poucos rótulos, mexer em menos parâmetros protege o que o pré-treino aprendeu.
+3. **Com 10% no MBD, o LoRA fica atrás** (0,752 contra 0,772 do FT original): a tarefa de 4 produtos já tem rótulos suficientes para o backbone se ajustar.
+4. **O XGB feito à mão continua à frente com poucos rótulos em todas as bases**, por 0,003 a 0,06. O modelo fundacional supera o XGB cru no HC com 10% e no AmEx com 10%, mas não as features feitas à mão.
+5. As execuções B′ a partir do `base_v2b` estão na fila do PC da esquerda.
+
+### TabSTAR com 20 mil linhas de treino (28/10/2026)
+
+`src/baselines/tabstar.py` (tabstar 1.1.16, fine-tuning LoRA na GPU) sobre as mesmas colunas cruas do XGB cru, com ou sem as 256 dimensões do embedding congelado de um pré-treino. 20 mil linhas de treino sorteadas com a semente 0, early stopping em 5 mil linhas da validação, avaliação na validação e no teste inteiros. Na AmEx com embedding, lote de LoRA 32 (com 64 estourou os 20 GB da GPU). Cada execução leva de 40 min a 2 h de GPU.
+
+| Base | Cru | + emb base_v1 | + emb base_v2b | Referências com 10% dos rótulos |
+|---|---|---|---|---|
+| Home Credit (AUC; 20 mil = 8% do treino) | 0,742 | 0,745 | 0,747 | LoRA B′ 0,765 · XGB feito à mão 0,776 · XGB cru 0,748 |
+| AmEx (métrica; 20 mil = 5% do treino) | 0,768 | 0,770 | 0,770 | LoRA B′ 0,777 · XGB feito à mão 0,780 · XGB cru 0,774 |
+
+Leitura:
+
+1. **O embedding ajuda pouco no TabSTAR** (+0,002 a +0,005). Acima de 200 colunas, o TabSTAR comprime o excedente por PCA, o que pode diluir o embedding.
+2. **O TabSTAR fica abaixo do modelo fundacional ajustado e do XGB**, mesmo levando em conta que as referências usam um pouco mais de linhas (24,6 mil no HC e 36,7 mil no AmEx). Ele está no nível do XGB cru com as mesmas colunas.
