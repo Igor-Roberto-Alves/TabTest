@@ -1,0 +1,168 @@
+name: round3_esquerda
+items:
+- name: ft_home_credit_v2b_full_20k
+  script: finetune
+  description: 'Rodada 3 (PC da esquerda): Home Credit (default, AUC). Fine-tuning completo do base_v2b (pré-treino de 300 mil passos), 20 mil passos, semente 0. Comparar com ft_home_credit_full_20k_s0..s2
+    (base_v1).'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_amex_v2b_full_20k
+  script: finetune
+  description: 'Rodada 3 (PC da esquerda): AmEx (default, métrica AmEx). Fine-tuning completo do base_v2b (pré-treino de 300 mil passos), 20 mil passos, semente 0. Comparar com ft_amex_full_20k_s0..s2 (base_v1).'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_mbd_mini_v2b_full_20k
+  script: finetune
+  description: 'Rodada 3 (PC da esquerda): MBD-mini (propensão a 4 produtos, AUC média). Fine-tuning completo do base_v2b (pré-treino de 300 mil passos), 20 mil passos, semente 0. Comparar com ft_mbd_mini_full_20k_s0..s2
+    (base_v1).'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_home_credit_v2b_full_frac01b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': Home Credit (default, AUC). fine-tuning completo do base_v2b com 1% das linhas de treino, 1500 passos, lr do backbone 3.0e-5, avaliação a cada 50 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=1500
+  - optim.lr=3.0e-5
+  - log.eval_every=50
+- name: ft_home_credit_v2b_lora_frac01b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': Home Credit (default, AUC). LoRA (r=8) do base_v2b com 1% das linhas de treino, 1500 passos, lr do backbone 1.0e-4, avaliação a cada 50 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=lora
+  - data.label_frac=0.01
+  - optim.steps=1500
+  - optim.lr=1.0e-4
+  - log.eval_every=50
+- name: ft_home_credit_v2b_full_frac10b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': Home Credit (default, AUC). fine-tuning completo do base_v2b com 10% das linhas de treino, 4000 passos, lr do backbone 3.0e-5, avaliação a cada 200 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=3.0e-5
+  - log.eval_every=200
+- name: ft_home_credit_v2b_lora_frac10b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': Home Credit (default, AUC). LoRA (r=8) do base_v2b com 10% das linhas de treino, 4000 passos, lr do backbone 1.0e-4, avaliação a cada 200 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_amex_v2b_full_frac01b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': AmEx (default, métrica AmEx). fine-tuning completo do base_v2b com 1% das linhas de treino, 1500 passos, lr do backbone 3.0e-5, avaliação a cada 50 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=1500
+  - optim.lr=3.0e-5
+  - log.eval_every=50
+- name: ft_amex_v2b_lora_frac01b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': AmEx (default, métrica AmEx). LoRA (r=8) do base_v2b com 1% das linhas de treino, 1500 passos, lr do backbone 1.0e-4, avaliação a cada 50 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=amex
+  - mode=lora
+  - data.label_frac=0.01
+  - optim.steps=1500
+  - optim.lr=1.0e-4
+  - log.eval_every=50
+- name: ft_amex_v2b_full_frac10b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': AmEx (default, métrica AmEx). fine-tuning completo do base_v2b com 10% das linhas de treino, 4000 passos, lr do backbone 3.0e-5, avaliação a cada 200 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=3.0e-5
+  - log.eval_every=200
+- name: ft_amex_v2b_lora_frac10b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': AmEx (default, métrica AmEx). LoRA (r=8) do base_v2b com 10% das linhas de treino, 4000 passos, lr do backbone 1.0e-4, avaliação a cada 200 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=amex
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_mbd_mini_v2b_full_frac01b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': MBD-mini (propensão a 4 produtos, AUC média). fine-tuning completo do base_v2b com 1% das linhas de treino, 1500 passos, lr do backbone 3.0e-5, avaliação a cada
+    50 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - data.label_frac=0.01
+  - optim.steps=1500
+  - optim.lr=3.0e-5
+  - log.eval_every=50
+- name: ft_mbd_mini_v2b_lora_frac01b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': MBD-mini (propensão a 4 produtos, AUC média). LoRA (r=8) do base_v2b com 1% das linhas de treino, 1500 passos, lr do backbone 1.0e-4, avaliação a cada 50 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=lora
+  - data.label_frac=0.01
+  - optim.steps=1500
+  - optim.lr=1.0e-4
+  - log.eval_every=50
+- name: ft_mbd_mini_v2b_full_frac10b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': MBD-mini (propensão a 4 produtos, AUC média). fine-tuning completo do base_v2b com 10% das linhas de treino, 4000 passos, lr do backbone 3.0e-5, avaliação a cada
+    200 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=full
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=3.0e-5
+  - log.eval_every=200
+- name: ft_mbd_mini_v2b_lora_frac10b
+  script: finetune
+  description: 'Rodada 3, protocolo B'': MBD-mini (propensão a 4 produtos, AUC média). LoRA (r=8) do base_v2b com 10% das linhas de treino, 4000 passos, lr do backbone 1.0e-4, avaliação a cada 200 passos.'
+  set:
+  - init=runs/pragma/base_v2b/ckpt_best.pt
+  - data.dataset=mbd_mini
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
