@@ -127,6 +127,13 @@ def collect():
 
 GROUP_LABEL = {"pragma": "pré-treino", "pragma_ft": "tarefa", "baselines": "XGBoost"}
 GPU_GROUPS = {"pragma", "pragma_ft"}  # o XGBoost roda na CPU
+
+
+def kind_of(e):
+    """Rótulo do tipo e se usa GPU: em baselines, tabstar_* é TabSTAR (GPU); o resto é XGBoost (CPU)."""
+    if e["group"] == "baselines" and e["name"].startswith("tabstar_"):
+        return "TabSTAR", True
+    return GROUP_LABEL.get(e["group"], e["group"]), e["group"] in GPU_GROUPS
 PROBE_LABEL = {"home_credit": "HC", "amex": "AmEx", "mbd_mini": "MBD"}
 
 
@@ -174,10 +181,11 @@ def to_rows(doc, machine):
         started = time.mktime(time.strptime(e["started"], "%Y-%m-%dT%H:%M:%S")) if e.get("started") else None
         # duração de parede: do início à última atualização (ou até agora, se ainda roda)
         duration = None if started is None else round(((now if e["status"] == "running" else updated) - started) / 60, 1)
-        gpu_hours = None if duration is None else round(duration / 60, 2) if e["group"] in GPU_GROUPS else 0.0
+        group_label, on_gpu = kind_of(e)
+        gpu_hours = None if duration is None else round(duration / 60, 2) if on_gpu else 0.0
         mem = e["metrics"].get("perf/gpu_mem_gb")
         rows.append({"kind": "exp", "id": e["id"], "name": e["name"], "group": e["group"],
-                     "group_label": GROUP_LABEL.get(e["group"], e["group"]), "status": e["status"],
+                     "group_label": group_label, "status": e["status"],
                      "stale": e["status"] == "running" and now - updated > 20 * 60,
                      "description": e["description"], "step": e["step"], "total_steps": total or None,
                      "progress": progress, "eta_min": eta, "started": e.get("started"), "updated": e.get("updated"),
