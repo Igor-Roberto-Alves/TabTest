@@ -330,3 +330,16 @@ Leitura:
 2. **O protocolo é o suspeito principal.** Com 1% e 10%, o melhor ponto na validação costuma ser a primeira ou a segunda avaliação, e depois a nota só cai. Com taxa de aprendizado de 1e-4 na rede inteira, o modelo decora as poucas linhas em centenas de passos (com 1%, são ~100 épocas em 4 mil passos) e apaga o que o pré-treino tinha aprendido. No AmEx e no MBD a 1%, o FT chega a empatar com a rede do zero.
 3. **O pré-treino ainda ajuda onde há várias fontes:** no Home Credit, +0,09 com 1%, +0,04 com 10% e +0,10 com 100% sobre a rede do zero. No AmEx (uma fonte só), o ganho é pequeno em qualquer fração.
 4. **Próximo passo, bloco B′:** refazer 1% e 10% com taxa de aprendizado menor (3e-5), avaliação a cada 50 a 100 passos e no máximo 1.500 passos a 1%, e incluir probe linear e LoRA, que treinam poucos parâmetros e sobreajustam menos. Só então a curva de rótulos mede o pré-treino, e não o sobreajuste.
+
+### base_v2b: pré-treino com 300 mil passos (PC da esquerda, concluído em 28/10/2026, 04h41)
+
+Mesma configuração do `base_v1`, treinada do zero com 300 mil passos e cosseno ajustado ao novo total. Levou cerca de 11h50 a ~7 passos/s, com pico de 4,7 GB de memória de GPU. Probes (logística sobre o embedding congelado, na validação) nos checkpoints fixos:
+
+| Checkpoint | Perda de validação | Probe HC (AUC) | Probe AmEx (métrica AmEx) | Probe MBD (AUC) |
+|---|---|---|---|---|
+| `base_v1`, 100 mil passos (fim do cosseno) | 3,762 | 0,686 | 0,701 | 0,682 |
+| `base_v2b`, passo 100 mil (taxa ainda alta) | 3,78 | 0,697 | 0,700 | 0,707 |
+| `base_v2b`, passo 200 mil | 3,62 | 0,720 | 0,733 | 0,705 |
+| `base_v2b`, passo 300 mil (final) | **3,544** | **0,722** | **0,734** | **0,714** |
+
+Leitura: **o `base_v1` estava subtreinado.** Com 3× mais passos, a perda cai 0,22 e os três probes sobem de 0,03 a 0,04, um ganho maior que qualquer diferença entre ablações do bloco C. A maior parte do ganho vem até os 200 mil passos; de 200 para 300 mil, o ganho é pequeno (+0,002 a +0,009). Próximo passo: repetir o fine-tuning do bloco A (e o B′) a partir do `ckpt_step300k.pt` do `base_v2b` para ver quanto disso chega às tarefas.
