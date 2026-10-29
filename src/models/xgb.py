@@ -4,6 +4,8 @@ from src.data import Split
 from src.models.base import Prediction
 from src.preprocessing import to_category
 
+NAME = "xgboost"
+INSTALL = "xgboost"
 KINDS = {"binary", "multiclass", "regression"}
 
 

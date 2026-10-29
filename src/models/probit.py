@@ -12,6 +12,8 @@ from src.data import Split
 from src.models.base import Prediction
 from src.preprocessing import linear_preprocessor
 
+NAME = "probit"
+INSTALL = "statsmodels"
 KINDS = {"binary", "multiclass"}
 
 

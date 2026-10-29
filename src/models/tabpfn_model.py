@@ -11,6 +11,8 @@ from src.data import Split, subsample
 from src.models.base import Prediction
 from src.preprocessing import ordinal_encode
 
+NAME = "tabpfn"
+INSTALL = "tabpfn"
 KINDS = {"binary", "multiclass", "regression"}
 MAX_TRAIN = 10_000  # o contexto do TabPFN é o próprio treino; acima disso fica lento
 

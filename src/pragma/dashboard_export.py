@@ -112,7 +112,7 @@ def collect():
                 "id": f"{group}/{run_id}", "name": st.get("name", run_id), "group": group,
                 "description": st.get("description", ""), "status": st.get("status", "?"),
                 "step": st.get("step", 0), "total_steps": st.get("total_steps"), "started": st.get("started"),
-                "updated": st.get("updated"), "error": st.get("error"), "config": st.get("config", {}),
+                "updated": st.get("updated"), "error": st.get("error"), "config": st.get("config", {}), "model": st.get("model"),
                 "metrics": latest, "best_step": best_step, "series": read_series(run_dir, group)})
     started = {e["id"] for e in experiments}
     queue = []
@@ -135,6 +135,25 @@ def kind_of(e):
         return "TabSTAR", True
     return GROUP_LABEL.get(e["group"], e["group"]), e["group"] in GPU_GROUPS
 PROBE_LABEL = {"home_credit": "HC", "amex": "AmEx", "mbd_mini": "MBD"}
+
+
+def model_of(e):
+    """Modelo da execução: o campo "model" do status.json; sem ele, deduz do grupo (execuções antigas)."""
+    if e.get("model"):
+        return e["model"]
+    if e["group"] == "baselines":
+        return "tabstar" if e["name"].startswith("tabstar_") else "xgboost"
+    return "pragma"
+
+
+def model_rows():
+    """Uma linha por modelo conhecido, para o seletor do painel: PRAGMA (eventos) e os do registro."""
+    from src.models.registry import MODELS
+    rows = [{"kind": "model", "name": "pragma", "label": "PRAGMA", "data": "events",
+             "capabilities": ["pretrain", "finetune", "explain_mask"]}]
+    rows += [{"kind": "model", "name": m.name, "label": m.label, "data": m.data,
+              "capabilities": sorted(m.capabilities)} for m in MODELS.values() if m.name != "pragma"]
+    return rows
 
 
 def primary(e):
@@ -192,7 +211,7 @@ def to_rows(doc, machine):
                      "primary_label": label, "primary_value": value, "higher_is_better": higher,
                      "summary": summary(e), "error": e.get("error"), "duration_min": duration,
                      "gpu_hours": gpu_hours, "gpu_mem_gb": None if mem is None else round(mem, 1),
-                     "best_step": e.get("best_step"), "machine": machine,
+                     "best_step": e.get("best_step"), "machine": machine, "model": model_of(e),
                      # nota final por métrica (validação no checkpoint escolhido e teste), para os cards de validação
                      **{f"{split}_{k}": e["metrics"].get(f"{split}/{k}")
                         for split in ("val", "test") for k in ("auc", "amex", "ks", "brier")}})
@@ -203,6 +222,7 @@ def to_rows(doc, machine):
         rows.append({"kind": "queue", "name": q["name"], "group": q["group"],
                      "group_label": GROUP_LABEL.get(q["group"], q["group"]), "description": q["description"],
                      "position": i + 1, "queue": q["queue"], "machine": machine})
+    rows += model_rows()
     g = doc["gpu"] or {}
     rows.append({"kind": "system", "machine": machine, "updated": doc["updated"], "gpu_util": g.get("util"),
                  "gpu_mem_used": g.get("mem_used_gb"), "gpu_mem_total": g.get("mem_total_gb")})

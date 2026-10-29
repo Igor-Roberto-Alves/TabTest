@@ -69,7 +69,7 @@ def main():
         features += f"; mais o embedding [CLS] congelado do checkpoint {args.emb} (256 dimensões)"
     description = (f"TabSTAR (fine-tuning LoRA na GPU) em {args.base}, tarefa {task['name']}, com "
                    f"{'todas as' if max_train is None else max_train} linhas de treino. Features: {features}. Early stopping em {args.val_max} linhas da validação.")
-    run = RunStatus(run_dir, name=run_name, group="baselines", description=description, total_steps=args.max_epochs,
+    run = RunStatus(run_dir, name=run_name, group="baselines", model="tabstar", description=description, total_steps=args.max_epochs,
                     config={"base": args.base, "emb": args.emb, "max_train": max_train, "val_max": args.val_max,
                             "max_epochs": args.max_epochs, "patience": args.patience, "lora_batch": args.lora_batch,
                             "seed": args.seed, "raw": True})

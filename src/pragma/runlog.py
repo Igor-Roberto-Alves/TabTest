@@ -1,7 +1,7 @@
 """Registro comum de execuções (pré-treino, fine-tuning e baselines) para o painel ao vivo.
 
 Cada execução tem um diretório runs/<grupo>/<nome>/ com:
-    status.json    nome, grupo, descrição, estado (running | done | failed), passo atual e total,
+    status.json    nome, grupo, modelo (opcional; ver registry.py), descrição, estado (running | done | failed), passo atual e total,
                    início, última atualização e as métricas mais recentes
     metrics.jsonl  uma linha por registro: {"step": ..., "<métrica>": valor, ...}
     results.json   resultado final (opcional)
@@ -23,14 +23,14 @@ def _now():
 
 
 class RunStatus:
-    def __init__(self, run_dir, name, group, description="", total_steps=None, config=None):
+    def __init__(self, run_dir, name, group, description="", total_steps=None, config=None, model=None):
         self.path = Path(run_dir) / "status.json"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         old = json.loads(self.path.read_text()) if self.path.exists() else {}
         self.state = {"name": name, "group": group, "description": description or old.get("description", ""),
                       "status": "running", "started": old.get("started", _now()), "updated": _now(),
                       "step": old.get("step", 0), "total_steps": total_steps, "metrics": old.get("metrics", {}),
-                      "config": config or {}}
+                      "config": config or {}, "model": model or old.get("model")}
         self._write()
 
     def _write(self):

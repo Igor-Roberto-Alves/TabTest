@@ -153,7 +153,7 @@ def main():
         features = emb_text if args.emb_only else f"{features}; mais o {emb_text}"
     description = (f"XGBoost (CPU) em {args.base}, tarefa {task['name']}, com {frac:.0%} das linhas de treino. "
                    f"Features: {features}. Grade de {len(grid)} combinações escolhida na validação.")
-    run = RunStatus(run_dir, name=run_name, group="baselines", description=description,
+    run = RunStatus(run_dir, name=run_name, group="baselines", model="xgboost", description=description,
                     total_steps=len(grid) * cfg["max_rounds"] * k,
                     config={"base": args.base, "label_frac": frac, "max_rounds": cfg["max_rounds"],
                             "early_stopping": cfg["early_stopping"], "grid": cfg["grid"][args.base],

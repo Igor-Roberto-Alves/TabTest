@@ -13,6 +13,8 @@ import numpy as np
 from src.data import Split
 from src.models.base import Prediction
 
+NAME = "ldm"
+INSTALL = "torch"
 KINDS = {"binary", "multiclass", "regression"}
 
 

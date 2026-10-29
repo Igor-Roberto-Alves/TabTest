@@ -13,6 +13,8 @@ import pandas as pd
 from src.data import Split, subsample
 from src.models.base import Prediction
 
+NAME = "tabstar"
+INSTALL = "tabstar"
 KINDS = {"binary", "multiclass", "regression"}
 MAX_TRAIN = 5_000
 

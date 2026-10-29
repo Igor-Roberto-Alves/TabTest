@@ -2,6 +2,7 @@
 
 Uso:
     python -m src.run --list
+    python -m src.run --list-models
     python -m src.run --task adult_income
     python -m src.run --task adult_income california_price --models xgboost tabpfn
     python -m src.run --task iris --models tabpfn --tabpfn-version V2
@@ -14,21 +15,15 @@ import importlib
 import time
 
 import pandas as pd
+import yaml
 
 from src.data import load_task
 from src.metrics import evaluate
+from src.models.registry import MODELS as REGISTRY
 from src.tasks import TASKS
 
-MODELS = {
-    "xgboost": "src.models.xgb",
-    "logistic": "src.models.logistic",
-    "probit": "src.models.probit",
-    "ridge": "src.models.ridge",
-    "tabpfn": "src.models.tabpfn_model",
-    "tabstar": "src.models.tabstar_model",
-    "ldm": "src.models.ldm_model",
-}
-INSTALL_HINT = {"xgboost": "xgboost", "probit": "statsmodels", "tabpfn": "tabpfn", "tabstar": "tabstar", "ldm": "torch"}
+MODELS = {n: m.module for n, m in REGISTRY.items()}
+INSTALL_HINT = {n: m.install for n, m in REGISTRY.items()}
 
 
 def main():
@@ -42,9 +37,17 @@ def main():
     parser.add_argument("--tabstar-time-limit", type=int)
     parser.add_argument("--ldm-checkpoint", help="checkpoint de src.ldm.pretrain (sem ele: treina do zero)")
     parser.add_argument("--ldm-steps", type=int, help="passos de fine-tuning (0 = zero-shot)")
+    parser.add_argument("--model-arg", nargs="+", default=[], metavar="MODELO.CHAVE=VALOR",
+                        help="argumento extra de um modelo (valor lido como YAML), ex.: xgboost.max_depth=8")
     parser.add_argument("--out", help="salva os resultados em CSV")
+    parser.add_argument("--list-models", action="store_true", help="lista os modelos registrados")
     parser.add_argument("--list", action="store_true", help="lista as tarefas sugeridas")
     args = parser.parse_args()
+
+    if args.list_models:
+        for m in REGISTRY.values():
+            print(f"{m.name:10s} {m.data:8s} {','.join(sorted(m.kinds)):28s} {m.description}")
+        return
 
     if args.list:
         for t in TASKS.values():
@@ -63,6 +66,13 @@ def main():
     if args.max_train:
         for name in ("tabpfn", "tabstar"):
             extra[name]["max_train"] = args.max_train
+
+    for item in args.model_arg:
+        key, _, raw = item.partition("=")
+        model, _, option = key.partition(".")
+        if model not in REGISTRY or not option or not _:
+            parser.error(f"--model-arg inválido: {item} (use MODELO.CHAVE=VALOR)")
+        extra.setdefault(model, {})[option] = yaml.safe_load(raw)
 
     rows = []
     for task_name in task_names:
