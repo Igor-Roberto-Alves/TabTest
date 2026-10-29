@@ -1,0 +1,232 @@
+name: round4
+items:
+- name: ft_home_credit_abl_ref_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_ref (referência: config padrão nas três
+    bases, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_ref/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_home_credit_abl_no_event_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_no_event (sem a máscara de evento inteiro,
+    p_event=0, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_event/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_home_credit_abl_no_type_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_no_type (sem a máscara de tipo semântico,
+    p_type=0, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_type/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_home_credit_abl_minilm_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_minilm (nomes de coluna e categorias
+    via MiniLM congelado, em vez de hash de n-gramas, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_minilm/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_home_credit_trial_03_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino sweep_pretrain/trial_03 (melhor trial da
+    busca: lr 5.4e-4, d_model 256, 4 camadas de histórico, p_event 0.19, p_type 0.2, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/sweep_pretrain/trial_03/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_amex_abl_ref_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_ref (referência: config padrão nas
+    três bases, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_ref/ckpt_best.pt
+  - data.dataset=amex
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_amex_abl_no_event_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_no_event (sem a máscara de evento inteiro,
+    p_event=0, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_event/ckpt_best.pt
+  - data.dataset=amex
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_amex_abl_no_type_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_no_type (sem a máscara de tipo semântico,
+    p_type=0, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_type/ckpt_best.pt
+  - data.dataset=amex
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_amex_abl_minilm_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino abl_minilm (nomes de coluna e categorias
+    via MiniLM congelado, em vez de hash de n-gramas, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_minilm/ckpt_best.pt
+  - data.dataset=amex
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_amex_trial_03_lora_frac10b
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). LoRA (r=8) com 10% das linhas de treino, 4000 passos, lr 1.0e-4, avaliação a cada 200 passos do pré-treino sweep_pretrain/trial_03 (melhor trial da
+    busca: lr 5.4e-4, d_model 256, 4 camadas de histórico, p_event 0.19, p_type 0.2, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/sweep_pretrain/trial_03/ckpt_best.pt
+  - data.dataset=amex
+  - mode=lora
+  - data.label_frac=0.1
+  - optim.steps=4000
+  - optim.lr=1.0e-4
+  - log.eval_every=200
+- name: ft_home_credit_abl_ref_full_20k
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_ref (referência: config padrão nas três bases, 20 mil
+    passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_ref/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_home_credit_abl_no_event_full_20k
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_no_event (sem a máscara de evento inteiro, p_event=0,
+    20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_event/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_home_credit_abl_no_type_full_20k
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_no_type (sem a máscara de tipo semântico, p_type=0, 20
+    mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_type/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_home_credit_abl_minilm_full_20k
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_minilm (nomes de coluna e categorias via MiniLM congelado,
+    em vez de hash de n-gramas, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_minilm/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_home_credit_trial_03_full_20k
+  script: finetune
+  description: 'Rodada 4: Home Credit (default, AUC). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino sweep_pretrain/trial_03 (melhor trial da busca: lr 5.4e-4,
+    d_model 256, 4 camadas de histórico, p_event 0.19, p_type 0.2, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/sweep_pretrain/trial_03/ckpt_best.pt
+  - data.dataset=home_credit
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_amex_abl_ref_full_20k
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_ref (referência: config padrão nas três bases, 20 mil
+    passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_ref/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_amex_abl_no_event_full_20k
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_no_event (sem a máscara de evento inteiro, p_event=0,
+    20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_event/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_amex_abl_no_type_full_20k
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_no_type (sem a máscara de tipo semântico, p_type=0,
+    20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_no_type/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_amex_abl_minilm_full_20k
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino abl_minilm (nomes de coluna e categorias via MiniLM congelado,
+    em vez de hash de n-gramas, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/abl_minilm/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
+- name: ft_amex_trial_03_full_20k
+  script: finetune
+  description: 'Rodada 4: AmEx (default, métrica AmEx). Fine-tuning completo com todas as linhas de treino, 20 mil passos, semente 0 do pré-treino sweep_pretrain/trial_03 (melhor trial da busca: lr 5.4e-4,
+    d_model 256, 4 camadas de histórico, p_event 0.19, p_type 0.2, 20 mil passos). Comparar com abl_ref e com o probe.'
+  set:
+  - init=runs/pragma/sweep_pretrain/trial_03/ckpt_best.pt
+  - data.dataset=amex
+  - mode=full
+  - optim.steps=20000
+  - log.eval_every=2000
+  - seed=0
