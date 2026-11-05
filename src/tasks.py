@@ -1,70 +1,123 @@
-"""Problemas de regressão e classificação sugeridos sobre os CSVs de data/.
+"""Protocolo de datasets: cada arquivo YAML em tasks/ descreve um dataset e suas tarefas.
 
-Cada Task diz qual CSV ler, qual coluna prever e quais colunas descartar
-(vazamento de alvo ou identificadores). `derive` cria alvos derivados.
+Um spec diz onde estão os arquivos, quais colunas não são features e, para cada
+tarefa, o tipo de problema e a variável alvo (coluna existente ou expressão).
+Formato completo e exemplos em tasks/README.md.
+
+    dataset: adult
+    files: [data/adult.csv]
+    tasks:
+      - name: adult_income
+        kind: binary
+        target: class
+
+Chaves de nível dataset (drop, categorical, datetime, filter, split, max_rows,
+features) valem para todas as tarefas; a tarefa pode sobrescrevê-las. `drop` e
+`categorical` da tarefa somam às do dataset.
 """
 
-from dataclasses import dataclass
-from typing import Callable, Literal
+from dataclasses import dataclass, field, fields
+from pathlib import Path
+from typing import Literal
 
-import pandas as pd
+import yaml
+
+ROOT = Path(__file__).resolve().parent.parent
+TASKS_DIR = ROOT / "tasks"
+KINDS = ("binary", "multiclass", "regression")
+SPLIT_METHODS = ("random", "temporal", "group")
 
 Kind = Literal["binary", "multiclass", "regression"]
 
 
 @dataclass(frozen=True)
+class SplitSpec:
+    method: str = "random"      # random (estratificado na classificação), temporal ou group
+    test_size: float = 0.2
+    column: str | None = None   # temporal: coluna de data/ordem; group: coluna de grupo
+    cutoff: str | None = None   # temporal: linhas com column >= cutoff vão para teste
+
+    def __post_init__(self):
+        if self.method not in SPLIT_METHODS:
+            raise ValueError(f"split.method deve ser um de {SPLIT_METHODS}, veio {self.method!r}")
+        if self.method != "random" and not self.column:
+            raise ValueError(f"split.method={self.method} exige split.column")
+
+
+@dataclass(frozen=True)
 class Task:
     name: str
-    dataset: str
-    target: str
+    dataset: str                   # nome do dataset (também usado na checagem de vazamento do LDM)
+    files: tuple[str, ...]         # caminhos/globs relativos à raiz do repo; .csv ou .parquet
+    target: str                    # nome da coluna alvo (criada por `expr` se ela existir)
     kind: Kind
-    description: str
-    drop: tuple[str, ...] = ()
-    derive: Callable[[pd.DataFrame], pd.DataFrame] | None = None
-    max_rows: int | None = None  # subamostra datasets muito grandes
+    description: str = ""
+    expr: str | None = None        # expressão pandas (DataFrame.eval) que cria o alvo
+    filter: str | None = None      # DataFrame.query aplicada antes de tudo
+    drop: tuple[str, ...] = ()     # colunas fora das features (ids, vazamento)
+    features: tuple[str, ...] | None = None  # se dado, usa só estas colunas como features
+    categorical: tuple[str, ...] = ()        # força colunas numéricas (códigos) a categóricas
+    datetime: tuple[str, ...] = ()           # colunas de data: viram ano/mês/dia/dia-da-semana/hora
+    split: SplitSpec = field(default_factory=SplitSpec)
+    max_rows: int | None = None    # subamostra datasets grandes
+    read: dict = field(default_factory=dict, hash=False, compare=False)  # kwargs de pd.read_csv
+    source: str = ""               # arquivo YAML de origem
+
+    def __post_init__(self):
+        if self.kind not in KINDS:
+            raise ValueError(f"{self.name}: kind deve ser um de {KINDS}, veio {self.kind!r}")
 
 
-def _california_expensive(df):
-    # binariza o preço mediano: bairro acima da mediana do estado
-    df = df.copy()
-    df["expensive"] = (df["MedHouseVal"] > df["MedHouseVal"].median()).map({True: "yes", False: "no"})
-    return df.drop(columns=["MedHouseVal"])
+_DATASET_KEYS = {"dataset", "description", "files", "tasks", "read", "drop", "categorical",
+                 "datetime", "filter", "split", "max_rows", "features"}
+_TASK_KEYS = {f.name for f in fields(Task)} - {"dataset", "files", "read", "source"}
+_ADDITIVE = ("drop", "categorical", "datetime")
 
 
-TASKS = {t.name: t for t in [
-    # --- classificação binária ---
-    Task("adult_income", "adult", "class", "binary",
-         "Renda anual > 50K a partir de dados do censo (num + cat, nulos)."),
-    Task("titanic_survival", "titanic", "survived", "binary",
-         "Sobrevivência no Titanic. 'boat' e 'body' vazam o alvo e são removidas.",
-         drop=("boat", "body", "name", "ticket", "home.dest")),
-    Task("credit_risk", "credit_g", "class", "binary",
-         "Bom ou mau pagador (German Credit), quase tudo categórico."),
-    Task("breast_cancer", "breast_cancer", "target", "binary",
-         "Tumor maligno ou benigno, 30 features numéricas."),
-    Task("california_expensive", "california_housing", "expensive", "binary",
-         "Bairro com preço acima da mediana (alvo derivado do housing).",
-         derive=_california_expensive),
-    # --- classificação multiclasse ---
-    Task("iris", "iris", "target", "multiclass", "Espécie de íris, 3 classes (sanidade)."),
-    Task("wine", "wine", "target", "multiclass", "Cultivar do vinho, 3 classes."),
-    Task("covertype", "covertype", "Cover_Type", "multiclass",
-         "Tipo de cobertura florestal, 7 classes (subamostrado para 20k linhas).",
-         max_rows=20_000),
-    # --- regressão ---
-    Task("california_price", "california_housing", "MedHouseVal", "regression",
-         "Preço mediano dos imóveis por bairro da Califórnia."),
-    Task("house_prices", "house_prices", "SalePrice", "regression",
-         "Preço de venda (Ames), 79 features e muitos nulos.", drop=("Id",)),
-    Task("kc_house_price", "kc_house", "price", "regression",
-         "Preço de casas em King County.", drop=("id", "date")),
-    Task("bike_demand", "bike_sharing", "count", "regression",
-         "Aluguéis de bicicleta por hora (efeitos de calendário e clima)."),
-    Task("diabetes", "diabetes", "target", "regression",
-         "Progressão do diabetes em um ano, 442 linhas (dados pequenos)."),
-    Task("adult_hours", "adult", "hours-per-week", "regression",
-         "Horas trabalhadas por semana a partir do perfil do censo."),
-    Task("titanic_fare", "titanic", "fare", "regression",
-         "Valor da passagem a partir de classe, porto e família.",
-         drop=("boat", "body", "name", "ticket", "home.dest", "cabin")),
-]}
+def _tuple(value):
+    if value is None:
+        return ()
+    return (value,) if isinstance(value, str) else tuple(value)
+
+
+def load_spec(path: str | Path) -> list[Task]:
+    """Lê um YAML de dataset e devolve suas tarefas."""
+    path = Path(path)
+    spec = yaml.safe_load(path.read_text()) or {}
+    where = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
+
+    unknown = set(spec) - _DATASET_KEYS
+    if unknown:
+        raise ValueError(f"{where}: chaves desconhecidas {sorted(unknown)}")
+    for key in ("dataset", "files", "tasks"):
+        if not spec.get(key):
+            raise ValueError(f"{where}: falta a chave obrigatória '{key}'")
+
+    tasks = []
+    for raw in spec["tasks"]:
+        unknown = set(raw) - _TASK_KEYS
+        if unknown:
+            raise ValueError(f"{where}: tarefa {raw.get('name')}: chaves desconhecidas {sorted(unknown)}")
+        merged = {k: spec[k] for k in ("filter", "max_rows", "features") if k in spec}
+        merged.update({k: v for k, v in raw.items() if k not in _ADDITIVE and k != "split"})
+        for key in _ADDITIVE:
+            merged[key] = tuple(dict.fromkeys(_tuple(spec.get(key)) + _tuple(raw.get(key))))
+        if merged.get("features") is not None:
+            merged["features"] = _tuple(merged["features"])
+        merged["split"] = SplitSpec(**{**(spec.get("split") or {}), **(raw.get("split") or {})})
+        tasks.append(Task(dataset=spec["dataset"], files=_tuple(spec["files"]), read=spec.get("read") or {},
+                          source=str(where), **merged))
+    return tasks
+
+
+def discover(extra_specs=(), tasks_dir: Path = TASKS_DIR) -> dict[str, Task]:
+    """Todas as tarefas de tasks/**/*.yaml mais as dos specs extras. Nomes devem ser únicos."""
+    paths = sorted(tasks_dir.rglob("*.yaml")) if tasks_dir.exists() else []
+    paths += [Path(p).resolve() for p in extra_specs if Path(p).resolve() not in paths]
+    registry: dict[str, Task] = {}
+    for path in paths:
+        for task in load_spec(path):
+            if task.name in registry and registry[task.name].source != task.source:
+                raise ValueError(f"tarefa '{task.name}' definida em {registry[task.name].source} e {task.source}")
+            registry[task.name] = task
+    return registry

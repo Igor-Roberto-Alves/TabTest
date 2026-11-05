@@ -1,0 +1,79 @@
+# Resultado diário da redistribuição de contratos (CSVs na raiz do repo).
+# Alvos levantados em exploracao_redistribuicao.ipynb (seção 6).
+dataset: redistribuicao
+description: Contratos avaliados pela redistribuição diária (um CSV por dia).
+files: resultado_redistribuicao_*.csv
+
+# Treina em 2026-10-28 e testa em 2026-10-29 (sem embaralhar dias).
+split:
+  method: temporal
+  column: data_referencia
+  cutoff: "2026-10-29"
+
+# 1,75M linhas no total, todas usadas. Para um teste rápido, ex.: max_rows: 200000
+max_rows: null
+
+# CNPJs como texto (preserva zeros à esquerda; viram categóricas)
+read:
+  dtype: {contratante: str, participante: str}
+
+# Fora das features em todas as tarefas:
+drop:
+  # identificadores / quase-identificadores
+  - requester_transaction_id
+  - referencia_externa
+  - contratante              # ~1 valor por contrato
+  - participante_nome        # redundante com participante
+  - data_referencia          # usado só no split; a hora reflete a ordem de processamento
+  # resultado do processo (vazamento): calculado, validado ou observado depois
+  - observacao
+  - urs_constituida_redistribuicao_calculada
+  - urs_fumaca_redistribuicao_calculada
+  - valor_constituido_redistribuicao_calculada
+  - urs_constituida_apos_validacao_anomala
+  - valor_constituido_apos_validacao_anomalas
+  - urs_fumaca_apos_validacao_anomala
+  - urs_constituida_depois_redistribuicao
+  - urs_fumaca_depois_redistribuicao
+  - valor_constituido_depois_distribuicao
+
+# Sobre `observacao`: vazia (~8%) NÃO é faltante. São contratos redistribuídos (têm URs
+# calculadas) e os únicos com os valores "depois" preenchidos. Em "Enviado para registro"
+# os valores "depois" vêm vazios (registro pendente), então não entram na regressão.
+tasks:
+  # Atenção: o participante sozinho quase determina este alvo (AUC ~0,999 com target
+  # encoding; cada participante tem taxa ~0% ou ~100%). Para um problema não trivial,
+  # remova-o (drop: [participante]) ou filtre os participantes com taxa intermediária.
+  - name: redistrib_enviado
+    kind: binary
+    target: foi_redistribuido
+    expr: observacao != 'Contrato não redistribuido'   # vazia conta como redistribuído
+    description: O contrato entra na redistribuição (enviado, concluído ou erro) vs. não redistribuído.
+
+  - name: redistrib_erro
+    kind: binary
+    target: erro
+    filter: observacao != 'Contrato não redistribuido'
+    expr: observacao.fillna('').str.startswith('Erro')
+    max_rows: null
+    description: Entre os redistribuídos, a efetivação na registradora falha.
+
+  - name: redistrib_fumaca
+    kind: binary
+    target: tem_fumaca_depois
+    expr: urs_fumaca_depois_redistribuicao > 0
+    description: Sobram URs fumaça após a redistribuição.
+
+  - name: redistrib_anomalia
+    kind: binary
+    target: anomalia
+    expr: urs_constituida_apos_validacao_anomala != urs_constituida_redistribuicao_calculada
+    description: A validação de anomalias altera as URs calculadas.
+
+  - name: redistrib_log_valor
+    kind: regression
+    target: log_valor_depois
+    filter: observacao != 'Contrato não redistribuido'   # linhas com valor final nulo saem sozinhas
+    expr: log1p(valor_constituido_depois_distribuicao)
+    max_rows: null
+    description: log(1 + valor constituído) final dos contratos redistribuídos com valor apurado.

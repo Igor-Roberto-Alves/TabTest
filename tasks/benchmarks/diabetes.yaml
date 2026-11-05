@@ -1,0 +1,7 @@
+dataset: diabetes
+files: data/diabetes.csv
+tasks:
+  - name: diabetes
+    kind: regression
+    target: target
+    description: Progressão do diabetes em um ano, 442 linhas (dados pequenos).

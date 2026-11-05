@@ -1,0 +1,8 @@
+dataset: covertype
+files: data/covertype.csv
+max_rows: 20000
+tasks:
+  - name: covertype
+    kind: multiclass
+    target: Cover_Type
+    description: Tipo de cobertura florestal, 7 classes (subamostrado para 20k linhas).

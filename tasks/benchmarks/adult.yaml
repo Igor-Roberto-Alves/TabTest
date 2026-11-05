@@ -1,0 +1,12 @@
+dataset: adult
+description: Censo americano (OpenML adult v2), misto num/cat com nulos.
+files: data/adult.csv
+tasks:
+  - name: adult_income
+    kind: binary
+    target: class
+    description: Renda anual > 50K a partir de dados do censo (num + cat, nulos).
+  - name: adult_hours
+    kind: regression
+    target: hours-per-week
+    description: Horas trabalhadas por semana a partir do perfil do censo.

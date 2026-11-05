@@ -1,0 +1,13 @@
+dataset: titanic
+files: data/titanic.csv
+drop: [boat, body, name, ticket, home.dest]   # boat/body vazam o alvo; o resto é identificador
+tasks:
+  - name: titanic_survival
+    kind: binary
+    target: survived
+    description: Sobrevivência no Titanic. 'boat' e 'body' vazam o alvo e são removidas.
+  - name: titanic_fare
+    kind: regression
+    target: fare
+    drop: [cabin]
+    description: Valor da passagem a partir de classe, porto e família.

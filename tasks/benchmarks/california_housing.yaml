@@ -1,0 +1,13 @@
+dataset: california_housing
+files: data/california_housing.csv
+tasks:
+  - name: california_price
+    kind: regression
+    target: MedHouseVal
+    description: Preço mediano dos imóveis por bairro da Califórnia.
+  - name: california_expensive
+    kind: binary
+    target: expensive
+    expr: MedHouseVal > MedHouseVal.median()   # alvo derivado
+    drop: [MedHouseVal]                         # a coluna de origem vazaria o alvo
+    description: Bairro com preço acima da mediana (alvo derivado do housing).

@@ -20,6 +20,7 @@ import torch
 from .corpus import TableCorpus, find_tables
 from .diffusion import MaskedDiffusion
 from .model import LDMConfig, TabularLDM
+from src.tracking import DEFAULT_LOGDIR, log_result, open_writer, timestamp
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
@@ -81,6 +82,9 @@ def parse_args():
     p.add_argument("--warmup", type=float, default=0.02, help="fração dos passos com warmup linear")
     p.add_argument("--log-every", type=int, default=100)
     p.add_argument("--save", type=Path, default=Path("checkpoints/ldm.pt"))
+    p.add_argument("--logdir", type=Path, default=DEFAULT_LOGDIR, help="raiz do TensorBoard (padrão: runs/)")
+    p.add_argument("--run-name", help="subpasta em <logdir>/pretrain/ (padrão: data-hora)")
+    p.add_argument("--no-tensorboard", action="store_true")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return p.parse_args()
@@ -101,6 +105,7 @@ def main():
 
     opt = torch.optim.AdamW(diffusion.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda(max(1, int(args.warmup * args.steps)), args.steps))
+    writer = None if args.no_tensorboard else open_writer(args.logdir, "pretrain", args.run_name or timestamp())
     sums, t0 = {}, time.time()
     for step in range(1, args.steps + 1):
         diffusion.train()
@@ -114,11 +119,22 @@ def main():
         for k, v in stats.items():
             sums[k] = sums.get(k, 0.0) + v.item()
         if step % args.log_every == 0 or step == args.steps:
-            msg = "  ".join(f"{k}={v / args.log_every:.4f}" for k, v in sums.items())
+            n = args.log_every if step % args.log_every == 0 else step % args.log_every
+            msg = "  ".join(f"{k}={v / n:.4f}" for k, v in sums.items())
             print(f"passo {step:6d}  {msg}  lr={sched.get_last_lr()[0]:.2e}  ({time.time() - t0:.0f}s)")
+            if writer is not None:
+                for k, v in sums.items():
+                    writer.add_scalar(f"pretrain/{k}", v / n, step)
+                writer.add_scalar("pretrain/lr", sched.get_last_lr()[0], step)
+            last = {f"pretrain/final_{k}": v / n for k, v in sums.items()}
             sums = {}
     save_checkpoint(args.save, diffusion, corpus.names, {}, args.steps)
     print(f"checkpoint salvo em {args.save}")
+    if writer is not None:
+        hparams = {k: (str(v) if isinstance(v, Path | list) else v) for k, v in vars(args).items()}
+        log_result(writer, hparams, {**last, "time/seconds": time.time() - t0},
+                   f"tabelas do corpus: {', '.join(corpus.names)}")
+        writer.close()
 
 
 if __name__ == "__main__":

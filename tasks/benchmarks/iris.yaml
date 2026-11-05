@@ -1,0 +1,7 @@
+dataset: iris
+files: data/iris.csv
+tasks:
+  - name: iris
+    kind: multiclass
+    target: target
+    description: Espécie de íris, 3 classes (sanidade).

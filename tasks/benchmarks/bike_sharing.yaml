@@ -1,0 +1,7 @@
+dataset: bike_sharing
+files: data/bike_sharing.csv
+tasks:
+  - name: bike_demand
+    kind: regression
+    target: count
+    description: Aluguéis de bicicleta por hora (efeitos de calendário e clima).

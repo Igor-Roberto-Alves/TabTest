@@ -16,8 +16,10 @@ from .table import CAT, NUM
 
 
 def adapt_and_predict(diffusion, train_df, test_df, target, kind, steps=300, batch_size=128, lr=1e-4,
-                      target_frac=0.5, seed=0, device="cpu", encoder_kwargs=None, verbose=False):
+                      target_frac=0.5, seed=0, device="cpu", encoder_kwargs=None, verbose=False, writer=None):
     """kind: "regression" (alvo numérico) ou "binary"/"multiclass" (alvo categórico, sem cortar classes).
+
+    writer: SummaryWriter opcional; registra a loss do fine-tuning por passo (finetune/*).
 
     Retorna (spec do alvo, probs (n_test, n_options) sem [NULL], y_reg (n_test,) na escala original).
     """
@@ -38,7 +40,8 @@ def adapt_and_predict(diffusion, train_df, test_df, target, kind, steps=300, bat
         for step in range(1, steps + 1):
             rows = torch.randint(0, len(local_all), (batch_size,), device=device)
             local, z = local_all[rows], z_all[rows]
-            if torch.rand(()) < target_frac:  # objetivo da tarefa: p(alvo | resto)
+            objective = "target" if torch.rand(()) < target_frac else "diffusion"
+            if objective == "target":  # objetivo da tarefa: p(alvo | resto)
                 stats = diffusion.loss(local, z, meta, force_mask=force.expand_as(local), weighting="uniform")
             else:  # objetivo de difusão: mantém o modelo da tabela inteira
                 stats = diffusion.loss(local, z, meta)
@@ -46,6 +49,8 @@ def adapt_and_predict(diffusion, train_df, test_df, target, kind, steps=300, bat
             stats["loss"].backward()
             torch.nn.utils.clip_grad_norm_(diffusion.parameters(), 1.0)
             opt.step()
+            if writer is not None:
+                writer.add_scalar(f"finetune/loss_{objective}", stats["loss"].item(), step)
             if verbose and step % 100 == 0:
                 print(f"    fine-tune {step}/{steps}  loss={stats['loss'].item():.4f}")
 

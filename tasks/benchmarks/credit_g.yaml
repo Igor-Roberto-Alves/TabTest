@@ -1,0 +1,7 @@
+dataset: credit_g
+files: data/credit_g.csv
+tasks:
+  - name: credit_risk
+    kind: binary
+    target: class
+    description: Bom ou mau pagador (German Credit), quase tudo categórico.

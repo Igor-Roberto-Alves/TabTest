@@ -1,0 +1,8 @@
+dataset: house_prices
+files: data/house_prices.csv
+drop: [Id]
+tasks:
+  - name: house_prices
+    kind: regression
+    target: SalePrice
+    description: Preço de venda (Ames), 79 features e muitos nulos.

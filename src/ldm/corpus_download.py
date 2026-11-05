@@ -15,7 +15,7 @@ from sklearn.datasets import fetch_openml
 
 CORPUS_DIR = Path(__file__).resolve().parents[2] / "data" / "corpus"
 
-# (nome no OpenML, versão). Não inclua cópias dos datasets de avaliação de src/tasks.py:
+# (nome no OpenML, versão). Não inclua cópias dos datasets de avaliação de tasks/:
 # "houses", por exemplo, é o California Housing e vazaria as tarefas california_*.
 OPENML = [
     ("phoneme", 1), ("spambase", 1), ("kc1", 1), ("pc4", 1), ("bank-marketing", 1),

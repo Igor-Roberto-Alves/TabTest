@@ -1,0 +1,7 @@
+dataset: breast_cancer
+files: data/breast_cancer.csv
+tasks:
+  - name: breast_cancer
+    kind: binary
+    target: target
+    description: Tumor maligno ou benigno, 30 features numéricas.

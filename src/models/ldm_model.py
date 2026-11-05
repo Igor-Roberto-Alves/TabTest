@@ -15,7 +15,7 @@ from src.models.base import Prediction
 KINDS = {"binary", "multiclass", "regression"}
 
 
-def fit_predict(split: Split, seed=0, checkpoint=None, steps=None, device=None) -> Prediction:
+def fit_predict(split: Split, seed=0, checkpoint=None, steps=None, device=None, writer=None) -> Prediction:
     import torch
 
     from src.ldm.model import LDMConfig
@@ -37,7 +37,7 @@ def fit_predict(split: Split, seed=0, checkpoint=None, steps=None, device=None) 
     y_train = split.y_train if split.is_regression else split.classes[split.y_train]
     train_df = split.X_train.assign(**{target: y_train})
     spec, probs, y_reg = adapt_and_predict(diffusion, train_df, split.X_test, target, split.task.kind,
-                                           steps=steps, lr=lr, seed=seed, device=device)
+                                           steps=steps, lr=lr, seed=seed, device=device, writer=writer)
     if split.is_regression:
         return Prediction(y_reg)
     # colunas de probs seguem spec.categories (ordem de frequência); reordena para split.classes

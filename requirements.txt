@@ -3,6 +3,8 @@ pandas>=2.2.2
 scikit-learn>=1.4
 xgboost>=2.0
 statsmodels>=0.14
+pyyaml>=6.0
+tensorboard>=2.16
 torch>=2.6.0
 tabpfn
 tabstar  # Python 3.10–3.12

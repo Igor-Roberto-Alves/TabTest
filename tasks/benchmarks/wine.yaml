@@ -1,0 +1,7 @@
+dataset: wine
+files: data/wine.csv
+tasks:
+  - name: wine
+    kind: multiclass
+    target: target
+    description: Cultivar do vinho, 3 classes.

@@ -1,0 +1,8 @@
+dataset: kc_house
+files: data/kc_house.csv
+drop: [id, date]
+tasks:
+  - name: kc_house_price
+    kind: regression
+    target: price
+    description: Preço de casas em King County.
